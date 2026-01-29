@@ -1,0 +1,52 @@
+# .gitignore for VM-Unikernel Benchmark
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+
+# Compiled binaries (except the main one we want to keep)
+# bin/ml_inference_benchmark is tracked intentionally
+
+# Results (except markdown summaries)
+results/*.txt
+results/*.csv
+results/*.json
+!results/*.md
+
+# Unikraft build artifacts
+unikraft/.unikraft/
+unikraft/.kraft/
+unikraft/build/
+unikraft/bin/
+unikraft/rootfs/main
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+.cache/
