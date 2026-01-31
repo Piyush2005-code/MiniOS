@@ -1,0 +1,38 @@
+# Kraftfile - Unikraft ML Inference Benchmark
+# ============================================
+# Configuration for neural network inference unikernel
+#
+spec: v0.6
+
+name: ml-inference-benchmark
+runtime: base:latest
+
+rootfs: ./rootfs
+
+targets:
+  - architecture: x86_64
+    platform: qemu
+
+# Resource configuration
+run:
+  memory: 256M
+  cpu: 1
+
+# Unikraft kernel configuration
+unikraft:
+  kconfig:
+    # Cooperative scheduler (minimal overhead)
+    CONFIG_LIBUKSCHEDCOOP: 'y'
+    CONFIG_LIBUKSCHEDRR: 'n'
+    
+    # Performance optimizations
+    CONFIG_OPTIMIZE_PERF: 'y'
+    CONFIG_LIBUKDEBUG_PRINTK: 'n'
+    
+    # Enable FPU for floating point operations
+    CONFIG_HAVE_X86PKU: 'y'
+    
+    # Timer support
+    CONFIG_LIBUKTIME: 'y'
+
+cmd: ["/main", "1000000"]
