@@ -1,14 +1,11 @@
-# Makefile for ARM64 Bare-Metal on macOS
+# Makefile for ARM64 Bare-Metal on Ubuntu 22.04
 # Prerequisites:
-#   brew install aarch64-elf-gcc
-#   brew install qemu
+#   sudo apt update
+#   sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-system-arm
 #
-# This installs:
-#   aarch64-elf-gcc, aarch64-elf-ld, aarch64-elf-objcopy, etc.
-
-CC = aarch64-elf-gcc
-LD = aarch64-elf-ld
-OBJCOPY = aarch64-elf-objcopy
+CC = aarch64-linux-gnu-gcc
+LD = aarch64-linux-gnu-ld
+OBJCOPY = aarch64-linux-gnu-objcopy
 
 CFLAGS = -ffreestanding -nostdlib -march=armv8-a+fp+simd -O2 -Wall -Wextra
 LDFLAGS = -nostdlib -static -T linker.ld

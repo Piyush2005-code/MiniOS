@@ -1,11 +1,7 @@
 # Makefile for ARM64 Bare-Metal on macOS
 # Prerequisites:
-#   brew install aarch64-elf-gcc
-#   brew install qemu
+#   brew install aarch64-elf-gcc qemu
 #
-# This installs:
-#   aarch64-elf-gcc, aarch64-elf-ld, aarch64-elf-objcopy, etc.
-
 CC = aarch64-elf-gcc
 LD = aarch64-elf-ld
 OBJCOPY = aarch64-elf-objcopy

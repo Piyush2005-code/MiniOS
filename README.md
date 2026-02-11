@@ -1,38 +1,53 @@
-# MiniOS: Bare-Metal Bootstrap for ARM64 ML Inference Unikernel
+# MiniOS: Bare‑Metal ARM64 Unikernel for ML Inference
 
-## Overview
-This repository contains the **minimal hardware abstraction layer (HAL)** for the ML Inference Unikernel project as defined in the SRS (Version 3.0). It is not a general-purpose OS; it is the foundation for a **single-address-space, deterministic ML inference appliance**.
+This repository contains a **minimal, production‑ready bootstrap** for an ARM64 unikernel optimised for ML inference (as specified in SRS v3.0). It provides:
 
-**Goal:** Provide a stable, working bootstrap so developers can immediately begin implementing ONNX graph processing and NEON-optimized kernels in C, rather than debugging boot code.
+- ARMv8‑A boot code (EL3 → EL2 → EL1) with exception vectors
+- MMU initialisation with identity‑mapped RAM (Normal Cacheable) and UART mapping (Device)
+- FP/SIMD (NEON) enablement
+- PL011 UART driver (115200 baud) for console output
+- A clean C environment (`main()`) – start coding your ML runtime immediately!
 
-## Code Architecture
-The bootstrap consists of 4 stages mirroring the SRS requirements:
+---
 
-1.  **Hardware Initialization (FR-001 to FR-005):**
-    - Sets Exception Level to EL1 (kernel mode).
-    - Installs a dummy exception vector table.
-    - Enables the ARM Generic Timer (implicitly via EL1).
-2.  **FP/SIMD Enablement (FR-013):**
-    - The `cpacr_el1` register is configured to enable Advanced SIMD (NEON) and FPU at EL1. This allows C code to use vector intrinsics (`arm_neon.h`) immediately.
-3.  **Memory Management (FR-016 to FR-020):**
-    - Enables the MMU with a **flat identity map**. This allows the data cache to be enabled.
-    - Allocates a 64KB stack for C execution.
-    - **Static Allocation:** This bootstrap uses a static allocator pattern (stack and BSS). The dynamic static allocator for tensors (SRS FR-016) is the *next* logical step for the team to implement.
-4.  **Communication Interface (FR-021):**
-    - Provides a `print()` function over the PL011 UART (QEMU `virt` machine default).
-    - Semihosting fallback is included for debugging in QEMU.
+## 🚀 Quick Start (Choose Your OS)
 
-## Build Instructions
-**Prerequisites:**
-- Clang/LLVM (or GCC `aarch64-none-elf`)
-- QEMU (>= 5.0.0)
-- GNU Make
+### 🍏 macOS
 
-**Steps:**
-```bash
-# Clone / copy files into a directory
-# Build the ELF and binary
-make clean && make
+1. **Install prerequisites** (Homebrew):
+   ```bash
+   brew install aarch64-elf-gcc qemu
+   ```
+2. **Build and Run:
+   ```bash
+   make -f Makefile.macos clean
+   make -f Makefile.macos
+   make -f Makefile.macos run
+   ```
 
-# Run in QEMU
-make run
+### 🐧 Arch Linux
+
+1. **Install prerequisites** (Homebrew):   
+   ```bash
+   sudo pacman -S aarch64-linux-gnu-gcc aarch64-linux-gnu-binutils qemu-system-aarch64
+   ```
+2. **Build and Run:
+   ```bash
+   make -f Makefile.arch clean
+   make -f Makefile.arch
+   make -f Makefile.arch run
+   ```
+
+### 🐧 Ubuntu 22.04
+
+1. **Install prerequisites** (Homebrew):   
+   ```bash
+   sudo apt update
+   sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-system-arm
+   ```
+2. **Build and Run:
+   ```bash
+   make -f Makefile.ubuntu clean
+   make -f Makefile.ubuntu
+   make -f Makefile.ubuntu run
+   ```

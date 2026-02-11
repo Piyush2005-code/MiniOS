@@ -1,5 +1,5 @@
-// linker.ld
-// Linker script for ARM64 bare-metal [citation:6]
+/* linker.ld */
+/* Linker script for ARM64 bare-metal */
 OUTPUT_ARCH(aarch64)
 ENTRY(_start)
 
