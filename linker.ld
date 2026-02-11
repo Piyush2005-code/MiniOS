@@ -1,37 +1,72 @@
-/* linker.ld */
-/* Linker script for ARM64 bare-metal */
+/*
+ * linker.ld - Linker Script for ARM64 Bare-Metal Kernel
+ * 
+ * Memory layout:
+ * - Load address: 0x40080000 (QEMU virt default)
+ * - Text section: code and read-only data
+ * - Data section: initialized data
+ * - BSS section: uninitialized data (zeroed by start.S)
+ */
+
 OUTPUT_ARCH(aarch64)
 ENTRY(_start)
 
 SECTIONS
 {
-    /* Load kernel at 1MB */
+    /* Load address for QEMU -kernel */
     . = 0x40080000;
-
+    
+    /*
+     * Boot code section - must be first
+     * Contains _start entry point
+     */
     .text.boot : {
-        KEEP(*(.text.boot))
+        *(.text.boot)
     }
-
+    
+    /*
+     * Main text section - executable code
+     */
     .text : {
         *(.text*)
     }
-
-    .rodata : ALIGN(4096) {
+    
+    /*
+     * Read-only data section
+     * String constants, const variables, etc.
+     */
+    .rodata : {
         *(.rodata*)
     }
-
-    .data : ALIGN(4096) {
+    
+    /*
+     * Initialized data section
+     * Global and static variables with initial values
+     */
+    .data : {
         *(.data*)
     }
-
-    .bss : ALIGN(4096) {
+    
+    /*
+     * Uninitialized data section
+     * Global and static variables without initializers
+     * Must be zeroed by boot code
+     */
+    .bss ALIGN(4096) : {
         __bss_start = .;
-        *(COMMON)
         *(.bss*)
-        . = ALIGN(16);
+        *(COMMON)
+        . = ALIGN(4096);
         __bss_end = .;
     }
-
-    . = ALIGN(4096);
-    __end = .;
+    
+    /*
+     * Discard unnecessary sections to reduce binary size
+     */
+    /DISCARD/ : {
+        *(.comment)
+        *(.gnu*)
+        *(.note*)
+        *(.eh_frame*)
+    }
 }

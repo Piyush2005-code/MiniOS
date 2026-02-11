@@ -1,133 +1,197 @@
-//
-// Minimal ARM64 Boot Code for ML Inference Unikernel
-// Fixed: .rept used instead of .irpc, semihosting trap uses hlt 0xf000
-//
+/*
+ * start.S - ARM64 Boot Code for ML Inference Unikernel
+ * 
+ * This file handles:
+ * - Exception level transitions (EL3 -> EL2 -> EL1)
+ * - Stack initialization
+ * - Exception vector table installation
+ * - FP/SIMD (NEON) enablement
+ * - MMU initialization and jump to C code
+ */
+
 .section ".text.boot"
+
 .global _start
 
-// Semihosting definitions (for QEMU debug output)
-.equ SYS_WRITE0,      0x04
-.equ SYS_EXIT,        0x18
-
-//
-// Exception Vector Table
-// Aligned to 2KB (0x800), 16 entries, each 0x80 bytes apart.
-//
-.align 11
-vector_table:
-    .rept 16
-    .align 7
-    b exception_handler
-    .endr
-
-//
-// Entry point
-//
+/*
+ * Entry point - QEMU -kernel starts at EL2
+ * Raspberry Pi firmware may start at EL3 or EL2
+ */
 _start:
-    // Ensure we are in a high Exception Level (EL3 or EL2)
+    /* Determine current exception level */
     mrs     x0, CurrentEL
-    lsr     x0, x0, #2
-    cmp     x0, #2
-    b.ge    1f
-    // If we are in EL1, print error and hang (should not happen on QEMU -kernel)
-    adr     x0, el_error_msg
-    bl      semihosting_puts
-    b       halt_loop
-1:
-    // Setup stack pointer for EL1 (we will drop to EL1)
-    adrp    x0, stack_top
-    add     x0, x0, :lo12:stack_top
-    mov     sp, x0
+    and     x0, x0, #0xC        /* Extract EL field (bits 3:2) */
+    cmp     x0, #0xC            /* Are we at EL3? */
+    b.eq    from_el3
+    cmp     x0, #0x8            /* Are we at EL2? */
+    b.eq    from_el2
+    cmp     x0, #0x4            /* Are we at EL1? */
+    b.eq    from_el1
+    /* Unknown EL - hang */
+    b       .
 
-    // If we are at EL3, drop to EL2, then EL1
-    mrs     x0, CurrentEL
-    lsr     x0, x0, #2
-    cmp     x0, #3
-    b.ne    try_el2
-
-    // Configure EL3
-    // Set SCR_EL3: NS=1, RW=1 (EL2 is AArch64), HCE=1, FIQ/IRQ masked
-    mov     x0, #0b101011
+from_el3:
+    /*
+     * Configure EL3 to drop to EL2
+     */
+    /* Set up SCR_EL3 - Secure Configuration Register */
+    mov     x0, #0x531          /* RW=1 (EL2 is AArch64), NS=1, SMD=1, HCE=1, SIF=1 */
     msr     scr_el3, x0
-    // Set SPSR_EL3: Mask DAIF, EL2h mode
-    mov     x0, #0x3c9
+    
+    /* Set up SPSR_EL3 for exception return to EL2h */
+    mov     x0, #0x3c9          /* EL2h (SPSel=1), mask debug exceptions, IRQ, FIQ */
     msr     spsr_el3, x0
-    // Set return address to EL2 entry
-    adr     x0, el2_entry
+    
+    /* Set ELR_EL3 to from_el2 label */
+    adr     x0, from_el2
     msr     elr_el3, x0
-    eret
+    
+    eret                        /* Exception return to EL2 */
 
-try_el2:
-    mrs     x0, CurrentEL
-    lsr     x0, x0, #2
-    cmp     x0, #2
-    b.ne    setup_el1
-
-el2_entry:
-    // Configure EL2
-    // Set HCR_EL2: RW=1 (EL1 is AArch64)
-    mov     x0, #(1 << 31)
+from_el2:
+    /*
+     * Configure EL2 to drop to EL1
+     */
+    /* Set up HCR_EL2 - Hypervisor Configuration Register */
+    mov     x0, #(1 << 31)      /* RW=1: EL1 is AArch64 */
     msr     hcr_el2, x0
-    // Set SPSR_EL2: Mask DAIF, EL1h mode
-    mov     x0, #0x3c5
+    
+    /* Set up SPSR_EL2 for exception return to EL1h */
+    mov     x0, #0x3c5          /* EL1h (SPSel=1, M=0b0101), mask debug, IRQ, FIQ */
     msr     spsr_el2, x0
-    // Set return address to EL1 entry
-    adr     x0, setup_el1
+    
+    /* Set ELR_EL2 to from_el1 label */
+    adr     x0, from_el1
     msr     elr_el2, x0
-    eret
+    
+    eret                        /* Exception return to EL1 */
 
-setup_el1:
-    // --- We are now at EL1 ---
-    // Install exception vector table
-    adr     x0, vector_table
+from_el1:
+    /*
+     * Now running at EL1 - set up the execution environment
+     */
+    
+    /* Zero the BSS section */
+    ldr     x0, =__bss_start
+    ldr     x1, =__bss_end
+zero_bss:
+    cmp     x0, x1
+    b.ge    bss_done
+    str     xzr, [x0], #8
+    b       zero_bss
+bss_done:
+
+    /* Set up stack pointer - 64 KB stack in BSS */
+    ldr     x0, =stack_top
+    mov     sp, x0
+    
+    /* Install exception vector table */
+    ldr     x0, =vector_table
     msr     vbar_el1, x0
-
-    // Enable FP/SIMD (NEON) - CRITICAL for ML!
-    mov     x0, #(0b11 << 20)
+    
+    /*
+     * Enable FP/SIMD (NEON) - required for ML inference
+     * Set CPACR_EL1.FPEN to 0b11 (no trapping at EL1 and EL0)
+     */
+    mov     x0, #(0x3 << 20)    /* FPEN = 0b11 */
     msr     cpacr_el1, x0
-
-    // Setup MMU (Flat map / Identity map)
+    isb
+    
+    /*
+     * Initialize MMU (implemented in C)
+     */
     bl      mmu_init
-
-    // Jump to C code
+    
+    /*
+     * Jump to C entry point
+     */
     bl      main
-
-    // If main returns, print message and exit via semihosting (QEMU)
-    adr     x0, exit_msg
-    bl      semihosting_puts
-    mov     x0, SYS_EXIT
-    mov     x1, 0
-    hlt     0xf000
-
-halt_loop:
+    
+    /* If main returns, hang */
+hang:
     wfi
-    b       halt_loop
+    b       hang
 
-//
-// Helper: Print string via semihosting (for QEMU debugging)
-//
-semihosting_puts:
-    mov     x1, x0
-    mov     x0, SYS_WRITE0
-    hlt     0xf000
-    ret
+/*
+ * Exception Vector Table
+ * ARMv8-A requires 16 entries, each aligned to 128 bytes
+ * 4 exception types × 4 exception levels = 16 entries
+ */
+.align 11                       /* 2^11 = 2048 byte alignment */
+vector_table:
+    /* Current EL with SP0 */
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    
+    /* Current EL with SPx */
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    
+    /* Lower EL using AArch64 */
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    
+    /* Lower EL using AArch32 */
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
+    .align 7
+    b       exception_handler
 
+/*
+ * Simple exception handler - prints error message and hangs
+ */
 exception_handler:
-    // For now, just print error and halt
-    adr     x0, excp_msg
-    bl      semihosting_puts
-    b       halt_loop
+    /* Save x0, x1 for UART output */
+    stp     x0, x1, [sp, #-16]!
+    
+    /* Print exception message */
+    adr     x0, exception_msg
+    bl      print
+    
+    /* Restore registers */
+    ldp     x0, x1, [sp], #16
+    
+    /* Hang forever */
+1:  wfi
+    b       1b
 
-.section .rodata
-el_error_msg:
-    .asciz "Error: Started in EL1 or lower.\n"
-exit_msg:
-    .asciz "\nReturned from main. Exiting.\n"
-excp_msg:
-    .asciz "\nUnexpected exception!\n"
+/*
+ * Data Section
+ */
+.section ".rodata"
+exception_msg:
+    .asciz  "\n*** EXCEPTION OCCURRED - SYSTEM HALTED ***\n"
 
-.section .bss
-.align 4
-stack:
-    .skip 0x10000          // 64KB stack
+/*
+ * BSS Section - uninitialized data
+ */
+.section ".bss"
+.align 12                       /* Page align for MMU */
+
+/* 64 KB stack */
+.align 16
+stack_bottom:
+    .skip   65536
 stack_top:

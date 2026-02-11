@@ -1,33 +1,110 @@
-# Makefile for ARM64 Bare-Metal on Ubuntu 22.04
+# Makefile for Ubuntu 22.04+ (aarch64-linux-gnu toolchain)
+#
 # Prerequisites:
 #   sudo apt update
-#   sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-system-arm
+#   sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-system-arm
 #
-CC = aarch64-linux-gnu-gcc
-LD = aarch64-linux-gnu-ld
-OBJCOPY = aarch64-linux-gnu-objcopy
+# Usage:
+#   make -f Makefile.ubuntu clean
+#   make -f Makefile.ubuntu
+#   make -f Makefile.ubuntu run
 
-CFLAGS = -ffreestanding -nostdlib -march=armv8-a+fp+simd -O2 -Wall -Wextra
+# Toolchain configuration
+PREFIX = aarch64-linux-gnu-
+CC = $(PREFIX)gcc
+LD = $(PREFIX)ld
+OBJCOPY = $(PREFIX)objcopy
+OBJDUMP = $(PREFIX)objdump
+
+# Compiler flags
+CFLAGS = -ffreestanding -nostdlib -march=armv8-a+fp+simd -O2 -Wall -Wextra -Werror
+
+# Linker flags
 LDFLAGS = -nostdlib -static -T linker.ld
 
-OBJS = start.o mmu.o main.o
+# QEMU configuration
+QEMU = qemu-system-aarch64
+QEMU_FLAGS = -M virt -cpu cortex-a72 -m 128M -nographic -kernel
 
-all: kernel.elf kernel.bin
+# Source files
+ASM_SOURCES = start.S
+C_SOURCES = mmu.c main.c
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+# Object files
+ASM_OBJECTS = $(ASM_SOURCES:.S=.o)
+C_OBJECTS = $(C_SOURCES:.c=.o)
+OBJECTS = $(ASM_OBJECTS) $(C_OBJECTS)
 
-%.o: %.S
-	$(CC) $(CFLAGS) -c $< -o $@
+# Output files
+KERNEL_ELF = kernel.elf
+KERNEL_BIN = kernel.bin
 
-kernel.elf: $(OBJS) linker.ld
-	$(LD) $(LDFLAGS) $(OBJS) -o $@
+# Default target
+.PHONY: all
+all: $(KERNEL_ELF) $(KERNEL_BIN)
 
-kernel.bin: kernel.elf
+# Link kernel ELF
+$(KERNEL_ELF): $(OBJECTS) linker.ld
+	@echo "Linking $@..."
+	$(LD) $(LDFLAGS) $(OBJECTS) -o $@
+	@echo "Kernel size:"
+	@ls -lh $@
+
+# Convert to binary (optional, for some bootloaders)
+$(KERNEL_BIN): $(KERNEL_ELF)
+	@echo "Creating binary image $@..."
 	$(OBJCOPY) -O binary $< $@
 
-run: kernel.elf
-	qemu-system-aarch64 -M virt -cpu cortex-a72 -nographic -kernel kernel.elf
+# Compile assembly files
+%.o: %.S
+	@echo "Assembling $<..."
+	$(CC) $(CFLAGS) -c $< -o $@
 
+# Compile C files
+%.o: %.c
+	@echo "Compiling $<..."
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Run in QEMU
+.PHONY: run
+run: $(KERNEL_ELF)
+	@echo "Starting QEMU..."
+	@echo "Press Ctrl-A then X to exit QEMU"
+	@echo ""
+	$(QEMU) $(QEMU_FLAGS) $(KERNEL_ELF)
+
+# Debug in QEMU (wait for GDB connection)
+.PHONY: debug
+debug: $(KERNEL_ELF)
+	@echo "Starting QEMU in debug mode..."
+	@echo "Connect GDB with: aarch64-linux-gnu-gdb kernel.elf -ex 'target remote :1234'"
+	$(QEMU) $(QEMU_FLAGS) $(KERNEL_ELF) -s -S
+
+# Disassemble kernel
+.PHONY: disasm
+disasm: $(KERNEL_ELF)
+	$(OBJDUMP) -d $< | less
+
+# Clean build artifacts
+.PHONY: clean
 clean:
-	rm -f *.o *.elf *.bin
+	@echo "Cleaning build artifacts..."
+	rm -f $(OBJECTS) $(KERNEL_ELF) $(KERNEL_BIN)
+
+# Show help
+.PHONY: help
+help:
+	@echo "ML Inference Unikernel - Build System (Ubuntu 22.04+)"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all     - Build kernel (default)"
+	@echo "  run     - Build and run in QEMU"
+	@echo "  debug   - Build and start QEMU in debug mode"
+	@echo "  disasm  - Disassemble kernel"
+	@echo "  clean   - Remove build artifacts"
+	@echo "  help    - Show this message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make -f Makefile.ubuntu"
+	@echo "  make -f Makefile.ubuntu run"
+	@echo "  make -f Makefile.ubuntu clean"
