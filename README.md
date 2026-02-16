@@ -1,8 +1,8 @@
-#Purpose of the Branch:
+# Purpose of the Branch:
+---
 The primary purpose of this branch is to maintain a comprehensive documentation of the project, as well as to store the Software Engineering Documents prepared throughout the project progress.
 
-This Branch contains the folloing project structure:
-
+This Branch contains the following directory structure:
 ```
 📦 SRS-docs-branch
 ├── 📄 README.md
