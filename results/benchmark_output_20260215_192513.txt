@@ -1,0 +1,19 @@
+VM vs Unikernel Benchmark Results
+Date: Sun Feb 15 19:25:13 IST 2026
+Iterations: 1000000
+Trials: 10
+
+Trial 1: Linux=, Unikraft=
+Trial 2: Linux=, Unikraft=
+Trial 3: Linux=, Unikraft=
+Trial 4: Linux=, Unikraft=
+Trial 5: Linux=, Unikraft=
+Trial 6: Linux=, Unikraft=
+Trial 7: Linux=, Unikraft=
+Trial 8: Linux=, Unikraft=
+Trial 9: Linux=, Unikraft=
+Trial 10: Linux=, Unikraft=
+
+Summary:
+Linux VM Average:  inf/s
+Unikraft Average:  inf/s
