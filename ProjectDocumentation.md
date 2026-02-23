@@ -18,98 +18,48 @@
   - `run.sh`: Script to execute or test the kernel.
 
 ### Build System
-- **Makefile**: Automates the build process, likely compiling source files into object files and linking them into the final kernel binary.
-- **Toolchain**: Assumes GCC/Clang for ARM64 cross-compilation.
+- **Makefile**: Automates the build process, compiling source files into object files and linking into the final binary.
+- **Toolchain**: `aarch64-elf-gcc` cross-compilation, `-std=c11 -ffreestanding -nostdlib`.
 
 ### Current Functionality
-- **Bootloader**:
-  - Initializes the ARM64 processor.
-  - Sets up exception vectors.
-- **HAL**:
-  - Provides low-level hardware access (e.g., MMU, UART).
-- **Kernel**:
-  - Contains the main entry point for the operating system.
+- **Bootloader**: Initializes ARM64 processor, parks secondary cores, drops to EL1, zeroes BSS.
+- **HAL**: PL011 UART driver (polling mode), identity-mapped MMU with 1 GB blocks, cache enable.
+- **Kernel**: Single `kernel_main()` entry point; enters WFE idle loop after boot.
 
 ---
 
-## Next Steps
+## Kernel API — Design Notes (Sprint 1)
 
-### 1. Kernel API Development
-#### Goals:
-- Define a set of kernel APIs to manage processes, memory, and scheduling.
-- Ensure modularity and extensibility for future features.
+### Objective
+Define a minimal, layered Kernel API to form the foundation for future process management and ML-inference scheduling. The API is intentionally small — expose only what is needed to support the SRS deliverables for this sprint.
 
-#### Proposed Functions:
-- **Process Management**:
-  - `int CreateProcess(void (*entry_point)(), void* stack, size_t stack_size);`
-  - `void TerminateProcess(int pid);`
-  - `void Yield();`
-- **Memory Management**:
-  - `void* AllocateMemory(size_t size);`
-  - `void FreeMemory(void* ptr);`
-  - `void MapMemory(void* virtual_addr, void* physical_addr, size_t size);`
-- **Inter-Process Communication (IPC)**:
-  - `int SendMessage(int pid, const void* message, size_t size);`
-  - `int ReceiveMessage(int* pid, void* buffer, size_t size);`
+### Design Principles
+1. **No dynamic linking** — all components compiled together as a unikernel.
+2. **Status codes everywhere** — every public function returns `Status`.
+3. **Layered build-up** — HAL extensions first, then libc-replacement utilities, then memory management.
+4. **ARM64 cooperative model** — interrupt handling deferred until HAL layer is stable.
 
-### 2. Process Management Design
-#### Goals:
-- Implement a process table to track process states (e.g., running, ready, blocked).
-- Design a context-switching mechanism.
+### Planned Modules (this sprint)
+| Module | Header | Purpose |
+|--------|--------|---------|
+| ARM64 helpers | `hal/arch.h` | Inline assembly for IRQ control, barriers, EL read |
+| String utilities | `lib/string.h` | Freestanding `memset`, `memcpy`, `strlen` |
+| Memory manager | `kernel/kmem.h` | Bump allocator for kernel heap |
+| GIC driver | `hal/gic.h` | GICv2 interrupt controller init / enable / disable |
+| Timer driver | `hal/timer.h` | ARM Generic Timer tick and microsecond delay |
 
-#### Steps:
-1. **Process Table**:
-   - Structure to store process metadata (PID, state, stack pointer, etc.).
-2. **Context Switching**:
-   - Save and restore CPU registers during a switch.
-   - Use ARM64 assembly for low-level context management.
-3. **Scheduler**:
-   - Implement a round-robin scheduler as a starting point.
+### Out of Scope (next sprint)
+- Thread/process creation and context switching
+- Arena and pool allocators
+- Scheduler
 
-### 3. Memory Management
-#### Goals:
-- Enable dynamic memory allocation for processes.
-- Implement virtual memory support using the MMU.
+### Memory Layout (planned)
+```
+RAM origin: 0x40000000
+.text / .rodata / .data / .bss  → low addresses
+Heap  → after BSS, ~500 MB for ML tensor buffers
+Stack → near top of 512 MB RAM, grows downward
+```
 
-#### Steps:
-1. **Static Allocator**:
-   - Pre-allocate memory regions for kernel and user processes.
-2. **Virtual Memory**:
-   - Use page tables to map virtual addresses to physical memory.
-3. **Memory Protection**:
-   - Isolate process memory to prevent corruption.
-
-### 4. Scheduler Design
-#### Goals:
-- Implement a cooperative scheduler for predictable execution.
-- Extend to preemptive scheduling if required.
-
-#### Steps:
-1. **Cooperative Scheduling**:
-   - Processes yield control explicitly using `Yield()`.
-2. **Preemptive Scheduling**:
-   - Use timer interrupts to enforce time slices.
-3. **Priority Scheduling**:
-   - Assign priorities to processes for better resource utilization.
-
----
-
-## Roadmap
-1. **Kernel API**:
-   - Define and implement core APIs for process and memory management.
-2. **Process Management**:
-   - Design and implement the process table and context-switching mechanism.
-3. **Memory Management**:
-   - Develop a static allocator and integrate MMU-based virtual memory.
-4. **Scheduler**:
-   - Start with cooperative scheduling and extend to preemptive scheduling.
-5. **Testing**:
-   - Write unit tests for each module.
-   - Use QEMU for integration testing.
-
----
-
-## References
-- ARM Architecture Reference Manual ARMv8-A.
-- IEEE 830-1998 Guidelines for Software Requirements Specifications.
-- ONNX Specification for Model Compatibility.
+### Status Codes to Add
+- `STATUS_ERROR_POOL_EXHAUSTED` — for future allocator work
