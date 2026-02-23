@@ -63,3 +63,14 @@ Stack → near top of 512 MB RAM, grows downward
 
 ### Status Codes to Add
 - `STATUS_ERROR_POOL_EXHAUSTED` — for future allocator work
+
+---
+
+## Development Log
+
+### Feb 23 — arch.h (ARM64 helpers)
+- Created `include/hal/arch.h`.
+- Provides `arch_enable_irq()`, `arch_disable_irq()`, `arch_irq_save()`,
+  `arch_irq_restore()`, `arch_dsb()`, `arch_isb()`, `arch_get_el()`.
+- No wfe/wfi helpers yet; those will be added when the idle thread concept
+  is introduced in a later sprint.
