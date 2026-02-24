@@ -80,3 +80,10 @@ Stack → near top of 512 MB RAM, grows downward
 - Provides `memset`, `memcpy`, `strlen` — needed by future memory manager
   and kernel internals (no libc available in freestanding build).
 - Added `src/lib/string.c` to Makefile sources.
+
+### Feb 24 (afternoon) — kmem.h interface
+- Created `include/kernel/kmem.h`.
+- Defines bump allocator interface only (no arena/pool this sprint).
+- `KMEM_Init`, `KMEM_Alloc(size, alignment)`, `KMEM_GetFreeSpace`, `KMEM_GetStats`.
+- Uses linker symbols `_heap_start` / `_heap_end` — requires linker script update.
+- Implementation to follow tomorrow.
