@@ -74,3 +74,9 @@ Stack → near top of 512 MB RAM, grows downward
   `arch_irq_restore()`, `arch_dsb()`, `arch_isb()`, `arch_get_el()`.
 - No wfe/wfi helpers yet; those will be added when the idle thread concept
   is introduced in a later sprint.
+
+### Feb 24 (morning) — String utility library
+- Created `include/lib/string.h` and `src/lib/string.c`.
+- Provides `memset`, `memcpy`, `strlen` — needed by future memory manager
+  and kernel internals (no libc available in freestanding build).
+- Added `src/lib/string.c` to Makefile sources.
