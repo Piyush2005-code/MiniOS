@@ -255,6 +255,54 @@ static void run_api_tests(void) {
   HAL_UART_PutString(" FAIL\n");
 }
 
+/* ================================================================== */
+/*  SECTION 2: ML Workloads                                           */
+/* ================================================================== */
+
+typedef struct {
+  const char *name;
+  size_t tensor_bytes;
+  int compute_iters;
+  int yield_freq;
+  int priority; /* 1=highest */
+  uint64_t burst;
+  int queue_level;
+  int tickets;
+} Workload;
+
+static Workload workloads[] = {
+    {"Conv2D", 4096, 5000, 1000, 1, 500000, MLQ_LEVEL_CRITICAL, 40},
+    {"MatMul", 2048, 3000, 1000, 2, 300000, MLQ_LEVEL_CRITICAL, 30},
+    {"Softmax", 512, 2000, 500, 3, 200000, MLQ_LEVEL_NORMAL, 20},
+    {"ReLU", 512, 1000, 500, 4, 100000, MLQ_LEVEL_NORMAL, 15},
+    {"Add", 256, 500, 500, 5, 50000, MLQ_LEVEL_BACKGROUND, 10},
+};
+#define NUM_WL 5
+
+static void ml_task(void *arg) {
+  Workload *w = (Workload *)arg;
+  if (!w)
+    return;
+
+  float *t = (float *)MEM_AllocTensor(w->tensor_bytes);
+  if (!t)
+    return;
+
+  size_t cnt = w->tensor_bytes / sizeof(float);
+  size_t i;
+  for (i = 0; i < cnt; i++)
+    t[i] = (float)i * 0.001f;
+
+  volatile float acc = 0.0f;
+  int it;
+  for (it = 0; it < w->compute_iters; it++) {
+    acc += t[it % cnt] * 1.001f;
+    if (w->yield_freq > 0 && (it + 1) % w->yield_freq == 0)
+      SCHED_Yield();
+  }
+  (void)acc;
+}
+
 
 void kernel_main(void) {
     run_api_tests();
