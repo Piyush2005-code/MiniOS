@@ -87,3 +87,11 @@ Stack → near top of 512 MB RAM, grows downward
 - `KMEM_Init`, `KMEM_Alloc(size, alignment)`, `KMEM_GetFreeSpace`, `KMEM_GetStats`.
 - Uses linker symbols `_heap_start` / `_heap_end` — requires linker script update.
 - Implementation to follow tomorrow.
+
+### Feb 25 — Bump allocator implementation + bug fix
+- Initially implemented `src/kernel/kmem.c` with incorrect alignment
+  formula: `ptr + alignment` when it should be
+  `(ptr + alignment - 1) & ~(alignment - 1)`.
+  Bug caused allocations with alignment > 8 to land on wrong addresses.
+- Fixed same day in a follow-up commit.  Added brief manual verification
+  using UART output to confirm 64-byte aligned allocations.

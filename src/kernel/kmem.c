@@ -1,9 +1,6 @@
 /**
  * @file kmem.c
  * @brief Kernel bump allocator implementation
- *
- * NOTE: Initial implementation — alignment calculation is incorrect.
- *       See KMEM_Alloc for the known bug (to be fixed).
  */
 
 #include "kernel/kmem.h"
@@ -71,20 +68,17 @@ void *KMEM_Alloc(size_t size, size_t alignment)
     }
 
     /*
-     * BUG: alignment upward computation is wrong.
+     * Align the current pointer upward.
      *
-     * The intent is to advance `ptr` to the next multiple of `alignment`,
-     * but the code below adds `alignment` unconditionally when any
-     * misalignment is detected — it should add only the padding needed.
+     * For a power-of-two alignment `a` the mask trick is:
+     *   aligned = (ptr + a - 1) & ~(a - 1)
      *
-     * Example: ptr=0x09, alignment=8
-     *   Correct:  0x09 + (8 - (9 % 8)) = 0x09 + 7 = 0x10
-     *   Buggy:    0x09 + 8             = 0x11  (still misaligned!)
+     * This works because (a-1) is all ones in the lower bits, so ~(a-1)
+     * clears them.  Adding (a-1) before masking handles the "already
+     * aligned" case (no change) and the "needs padding" case correctly.
      */
-    uintptr_t ptr = (uintptr_t)heap.current;
-    if ((ptr % alignment) != 0) {
-        ptr = ptr + alignment;      /* <-- BUG: should be ptr + (alignment - (ptr % alignment)) */
-    }
+    uintptr_t mask  = (uintptr_t)(alignment - 1u);
+    uintptr_t ptr   = ((uintptr_t)heap.current + mask) & ~mask;
 
     uint8_t *alloc_start = (uint8_t *)ptr;
     uint8_t *alloc_end   = alloc_start + size;
