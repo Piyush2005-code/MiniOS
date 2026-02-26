@@ -4,7 +4,7 @@
 # ============================================================================
 
 # ---- Toolchain ----
-CROSS    = aarch64-elf-
+CROSS    = aarch64-linux-gnu-
 CC       = $(CROSS)gcc
 AS       = $(CROSS)as
 LD       = $(CROSS)ld
@@ -49,7 +49,13 @@ ASM_SRCS = $(SRC_DIR)/boot/boot.S \
 # C sources
 C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
-           $(SRC_DIR)/kernel/main.c
+           $(SRC_DIR)/kernel/main.c \
+           $(SRC_DIR)/onnx/onnx_types.c \
+           $(SRC_DIR)/onnx/onnx_graph.c \
+           $(SRC_DIR)/onnx/onnx_runtime.c \
+           $(SRC_DIR)/onnx/onnx_loader.c \
+           $(SRC_DIR)/onnx/onnx_demo.c \
+           $(SRC_DIR)/onnx/onnx_loader_demo.c
 
 # ---- Object files ----
 ASM_OBJS = $(patsubst $(SRC_DIR)/%.S, $(OBJ_DIR)/%.o, $(ASM_SRCS))
@@ -78,48 +84,48 @@ all: $(TARGET_ELF) $(TARGET_BIN)
 
 # ---- Link ----
 $(TARGET_ELF): $(ALL_OBJS) linker.ld
-	@echo "[LD]   $@"
-	@mkdir -p $(BUILD_DIR)
+	@echo "[LD] Linking $@..."
 	@$(LD) $(LDFLAGS) $(ALL_OBJS) -o $@
 
-# ---- Binary image ----
+# ---- Binary ----
 $(TARGET_BIN): $(TARGET_ELF)
-	@echo "[BIN]  $@"
+	@echo "[OBJCOPY] Creating flat binary $@..."
 	@$(OBJCOPY) -O binary $< $@
 
-# ---- Compile assembly ----
+# ---- Assembly files ----
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.S
-	@echo "[AS]   $<"
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@echo "[AS] $<"
+	@$(AS) $(ASFLAGS) -c $< -o $@
 
-# ---- Compile C ----
+# ---- C files ----
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	@echo "[CC]   $<"
 	@mkdir -p $(dir $@)
+	@echo "[CC] $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # ---- Run in QEMU ----
 run: $(TARGET_ELF)
-	@echo "=== Starting QEMU (Ctrl+A then X to exit) ==="
-	@$(QEMU) $(QEMU_FLAGS)
+	@echo ""
+	@echo "=== Starting QEMU ==="
+	@echo "    Press Ctrl+A then X to exit"
+	@echo ""
+	@bash scripts/run.sh
 
-# ---- Debug with GDB ----
+# ---- Debug ----
 debug: $(TARGET_ELF)
-	@echo "=== Starting QEMU in debug mode (GDB port 1234) ==="
-	@echo "    Connect with: aarch64-elf-gdb $(TARGET_ELF)"
-	@echo "    Then:         target remote :1234"
-	@$(QEMU) $(QEMU_FLAGS) -S -s
+	@echo "[QEMU] Starting with GDB server on :1234..."
+	@$(QEMU) $(QEMU_FLAGS) -S -gdb tcp::1234
 
 # ---- Disassembly ----
 disasm: $(TARGET_ELF)
 	@$(OBJDUMP) -d $< | less
 
-# ---- Print section sizes ----
+# ---- Size analysis ----
 size: $(TARGET_ELF)
-	@$(SIZE) $<
+	@$(SIZE) -A $<
 
 # ---- Clean ----
 clean:
-	@echo "[CLEAN]"
+	@echo "[CLEAN] Removing build artifacts..."
 	@rm -rf $(BUILD_DIR)

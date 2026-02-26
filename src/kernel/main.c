@@ -15,6 +15,8 @@
 #include "status.h"
 #include "hal/uart.h"
 #include "hal/mmu.h"
+#include "onnx/onnx_demo.h"
+#include "onnx/onnx_loader_demo.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols from vectors.S                                   */
@@ -173,11 +175,21 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT]  Ready for C development!\n");
     HAL_UART_PutString("[BOOT] =============================\n");
     HAL_UART_PutString("\n");
-    HAL_UART_PutString("[BOOT] Entering idle loop...\n");
-    HAL_UART_PutString("       (Ctrl+A then X to exit QEMU)\n");
-
+    /* ---- Run ONNX Runtime Demos ---- */
+    HAL_UART_PutString("\n");
+    HAL_UART_PutString("[BOOT] Starting ONNX runtime demos...\n");
+    HAL_UART_PutString("\n");
+    
+    /* Run model loading demo */
+    ONNX_LoaderDemo();
+    
+    /* Run manual graph building demo (commented to save output space) */
+    /* ONNX_RunDemos(); */
+    
     /* ---- Idle loop ---- */
-    /* Future: this will be replaced by the ML runtime main loop */
+    HAL_UART_PutString("\n[BOOT] Entering idle loop...\n");
+    HAL_UART_PutString("       (Ctrl+A then X to exit QEMU)\n");
+    
     while (1) {
         __asm__ volatile("wfe");
     }
