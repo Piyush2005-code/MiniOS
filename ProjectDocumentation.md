@@ -95,3 +95,9 @@ Stack → near top of 512 MB RAM, grows downward
   Bug caused allocations with alignment > 8 to land on wrong addresses.
 - Fixed same day in a follow-up commit.  Added brief manual verification
   using UART output to confirm 64-byte aligned allocations.
+
+### Feb 26 — GICv2 driver + CPU interface fix
+- Created `include/hal/gic.h` (GICv2 interface: init, enable, disable, ack, eoi).
+- Initial `gic.c` was missing GICC_PMR and GICC_BPR initialisation, so
+  **no interrupts reached the processor** despite the distributor being armed.
+- Fixed afternoon of same day: set `GICC_PMR = 0xFF` and `GICC_BPR = 0`.
