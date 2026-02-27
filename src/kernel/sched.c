@@ -165,17 +165,118 @@ static int find_next_priority(void) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Policy: Multilevel Queue                                          */
+/*  Level 0 (Critical) > Level 1 (Normal) > Level 2 (Background)     */
+/*  Within each level: Round-Robin                                    */
+/* ------------------------------------------------------------------ */
+
+static int find_next_mlq(int start) {
+  int level;
+  for (level = 0; level < MLQ_NUM_LEVELS; level++) {
+    /* Round-robin within this level */
+    int i;
+    for (i = 1; i <= s_num_tasks; i++) {
+      int idx = (start + i) % s_num_tasks;
+      if (s_tasks[idx].state == TASK_READY &&
+          s_tasks[idx].queue_level == level) {
+        return idx;
+      }
+    }
+  }
+  return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Policy: Lottery — weighted random selection by tickets            */
+/* ------------------------------------------------------------------ */
+
+static int find_next_lottery(void) {
+  /* Sum total tickets of ready tasks */
+  int total_tickets = 0;
+  int i;
+  for (i = 0; i < s_num_tasks; i++) {
+    if (s_tasks[i].state == TASK_READY) {
+      total_tickets += s_tasks[i].tickets;
+    }
+  }
+
+  if (total_tickets <= 0)
+    return -1;
+
+  /* Draw a winning ticket */
+  int winner = (int)(prng_next() % (uint32_t)total_tickets);
+  int running_sum = 0;
+
+  for (i = 0; i < s_num_tasks; i++) {
+    if (s_tasks[i].state == TASK_READY) {
+      running_sum += s_tasks[i].tickets;
+      if (running_sum > winner) {
+        return i;
+      }
+    }
+  }
+
+  /* Fallback: first ready */
+  for (i = 0; i < s_num_tasks; i++) {
+    if (s_tasks[i].state == TASK_READY)
+      return i;
+  }
+  return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Dispatcher                                                        */
+/* ------------------------------------------------------------------ */
 
 static int find_next_ready(int current_idx) {
-    if (s_policy == SCHED_POLICY_FCFS) return find_next_fcfs();
-    if (s_policy == SCHED_POLICY_SJF) return find_next_sjf();
-    if (s_policy == SCHED_POLICY_HRRN) return find_next_hrrn();
-    if (s_policy == SCHED_POLICY_PRIORITY) return find_next_priority();
+  switch (s_policy) {
+  case SCHED_POLICY_FCFS:
+    return find_next_fcfs();
+  case SCHED_POLICY_SJF:
+    return find_next_sjf();
+  case SCHED_POLICY_RR:
     return find_next_rr(current_idx);
+  case SCHED_POLICY_HRRN:
+    return find_next_hrrn();
+  case SCHED_POLICY_PRIORITY:
+    return find_next_priority();
+  case SCHED_POLICY_MLQ:
+    return find_next_mlq(current_idx);
+  case SCHED_POLICY_LOTTERY:
+    return find_next_lottery();
+  default:
+    return find_next_rr(current_idx);
+  }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Public API                                                        */
+/* ------------------------------------------------------------------ */
+
 void SCHED_SetPolicy(SchedPolicy policy) { s_policy = policy; }
-const char* SCHED_PolicyName(SchedPolicy policy) { return "Policy"; }
- {
+
+const char *SCHED_PolicyName(SchedPolicy policy) {
+  switch (policy) {
+  case SCHED_POLICY_FCFS:
+    return "FCFS";
+  case SCHED_POLICY_SJF:
+    return "SJF";
+  case SCHED_POLICY_RR:
+    return "Round-Robin";
+  case SCHED_POLICY_HRRN:
+    return "HRRN";
+  case SCHED_POLICY_PRIORITY:
+    return "Priority";
+  case SCHED_POLICY_MLQ:
+    return "MLQ";
+  case SCHED_POLICY_LOTTERY:
+    return "Lottery";
+  default:
+    return "Unknown";
+  }
+}
+
+Status SCHED_Init(void) {
   int i;
   for (i = 0; i < SCHED_MAX_TASKS; i++) {
     s_tasks[i].id = i;
