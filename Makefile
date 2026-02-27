@@ -50,6 +50,7 @@ ASM_SRCS = $(SRC_DIR)/boot/boot.S \
 C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
            $(SRC_DIR)/hal/gic.c \
+           $(SRC_DIR)/hal/timer.c \
            $(SRC_DIR)/lib/string.c \
            $(SRC_DIR)/kernel/kmem.c \
            $(SRC_DIR)/kernel/main.c
