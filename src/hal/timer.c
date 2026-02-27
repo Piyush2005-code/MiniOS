@@ -1,9 +1,6 @@
 /**
  * @file timer.c
  * @brief ARM Generic Timer implementation
- *
- * NOTE: HAL_Timer_Enable() has an overflow bug in the TVAL calculation.
- *       See comment inside the function.
  */
 
 #include "hal/timer.h"
@@ -11,8 +8,8 @@
 #include "types.h"
 
 /* ARM Generic Timer register accessors */
-#define READ_CNTFRQ()    ({ uint64_t v; __asm__ volatile("mrs %0, cntfrq_el0"  : "=r"(v)); v; })
-#define READ_CNTPCT()    ({ uint64_t v; __asm__ volatile("mrs %0, cntpct_el0"  : "=r"(v)); v; })
+#define READ_CNTFRQ()    ({ uint64_t v; __asm__ volatile("mrs %0, cntfrq_el0"   : "=r"(v)); v; })
+#define READ_CNTPCT()    ({ uint64_t v; __asm__ volatile("mrs %0, cntpct_el0"   : "=r"(v)); v; })
 #define WRITE_TVAL(v)    __asm__ volatile("msr cntp_tval_el0, %0" :: "r"((uint64_t)(v)))
 #define READ_CTL()       ({ uint64_t v; __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(v)); v; })
 #define WRITE_CTL(v)     __asm__ volatile("msr cntp_ctl_el0, %0" :: "r"((uint64_t)(v)))
@@ -27,7 +24,6 @@ Status HAL_Timer_Init(void)
         return STATUS_ERROR_HARDWARE_FAULT;
     }
 
-    /* Disable timer initially */
     WRITE_CTL(0u);
     WRITE_TVAL(0u);
 
@@ -41,18 +37,15 @@ Status HAL_Timer_Init(void)
 void HAL_Timer_Enable(uint32_t interval_us)
 {
     /*
-     * BUG: overflow in TVAL calculation.
+     * Use uint64_t for the intermediate product so that
+     * timer_freq (62 000 000) * interval_us (10 000) does not overflow.
      *
-     * timer_freq is ~62 000 000 (62 MHz).
-     * Multiplying by interval_us (e.g. 10 000 for 10 ms) before dividing:
-     *   62000000 * 10000 = 620 000 000 000 > UINT32_MAX (4 294 967 295)
-     * The cast to uint32_t silently truncates, giving a wildly wrong interval.
-     *
-     * Fix: use uint64_t arithmetic throughout (see next commit).
+     *   62 000 000 * 10 000 = 620 000 000 000  (needs > 32 bits)
+     *   620 000 000 000 / 1 000 000 = 620 000  (fits in 32 bits)
      */
-    uint32_t tval = (uint32_t)(timer_freq * interval_us) / 1000000u;  /* OVERFLOW */
-    WRITE_TVAL((uint64_t)tval);
-    WRITE_CTL(1u);  /* ENABLE=1, IMASK=0, ISTATUS: RO */
+    uint64_t tval = ((uint64_t)timer_freq * (uint64_t)interval_us) / 1000000u;
+    WRITE_TVAL(tval);
+    WRITE_CTL(1u);
 }
 
 void HAL_Timer_Disable(void)
@@ -69,6 +62,7 @@ uint64_t HAL_Timer_GetElapsedUs(uint64_t start_ticks)
 {
     uint64_t now  = READ_CNTPCT();
     uint64_t diff = now - start_ticks;
+    /* Multiply first to preserve precision before dividing */
     return (diff * 1000000u) / timer_freq;
 }
 
@@ -83,7 +77,6 @@ void HAL_Timer_DelayUs(uint32_t us)
 
 void HAL_Timer_Reload(uint32_t interval_us)
 {
-    /* Same overflow bug as HAL_Timer_Enable — will be fixed together */
-    uint32_t tval = (uint32_t)(timer_freq * interval_us) / 1000000u;
-    WRITE_TVAL((uint64_t)tval);
+    uint64_t tval = ((uint64_t)timer_freq * (uint64_t)interval_us) / 1000000u;
+    WRITE_TVAL(tval);
 }

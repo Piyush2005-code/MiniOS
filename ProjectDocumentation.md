@@ -101,3 +101,14 @@ Stack → near top of 512 MB RAM, grows downward
 - Initial `gic.c` was missing GICC_PMR and GICC_BPR initialisation, so
   **no interrupts reached the processor** despite the distributor being armed.
 - Fixed afternoon of same day: set `GICC_PMR = 0xFF` and `GICC_BPR = 0`.
+
+### Feb 27 — ARM Generic Timer driver + overflow fix
+- Created `include/hal/timer.h` and `src/hal/timer.c`.
+- `HAL_Timer_Init` reads `CNTFRQ_EL0` (62.5 MHz on QEMU virt/cortex-a53).
+- Initial `HAL_Timer_Enable` multiplied `timer_freq * interval_us` as
+  `uint32_t`, causing silent overflow — 10 ms interval was ~15× too short.
+- Fixed evening of same day: promoted intermediate to `uint64_t`.
+- `HAL_Timer_DelayUs` / `HAL_Timer_GetElapsedUs` / `HAL_Timer_Reload` added.
+
+**Note:** Timer callbacks / system tick counter are out of scope for this
+sprint.  The caller integrates via the IRQ handler directly.
