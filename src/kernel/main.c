@@ -303,8 +303,204 @@ static void ml_task(void *arg) {
   (void)acc;
 }
 
+/* ================================================================== */
+/*  SECTION 3: Benchmark Runner                                       */
+/* ================================================================== */
+
+typedef struct {
+  SchedPolicy pol;
+  uint64_t total_us;
+  uint64_t switches;
+  uint64_t avg_turn_us;
+  uint64_t avg_resp_us;
+  uint64_t avg_run_us;
+  uint64_t mem_peak;
+} BResult;
+
+static BResult res[SCHED_NUM_POLICIES];
+static int nres = 0;
+
+static void run_bench(SchedPolicy pol, BResult *r) {
+  MEM_Reset();
+  SCHED_ResetAll();
+  SCHED_SetPolicy(pol);
+
+  HAL_UART_PutString("\n  --- ");
+  HAL_UART_PutString(SCHED_PolicyName(pol));
+  HAL_UART_PutString(" ---\n");
+
+  int i;
+  for (i = 0; i < NUM_WL; i++) {
+    int id = SCHED_CreateTask(workloads[i].name, ml_task, &workloads[i], 0);
+    if (id >= 0) {
+      SCHED_SetTaskPriority(id, workloads[i].priority);
+      SCHED_SetTaskBurst(id, workloads[i].burst);
+      SCHED_SetTaskQueueLevel(id, workloads[i].queue_level);
+      SCHED_SetTaskTickets(id, workloads[i].tickets);
+    }
+  }
+
+  uint64_t t0 = HAL_Timer_GetTicks();
+  SCHED_Run();
+  uint64_t t1 = HAL_Timer_GetTicks();
+
+  r->pol = pol;
+  r->total_us = HAL_Timer_TicksToUs(t1 - t0);
+  r->switches = SCHED_GetTotalSwitches();
+
+  const Task *tasks = SCHED_GetTasks();
+  int n = SCHED_GetTaskCount();
+  uint64_t sTurn = 0, sResp = 0, sRun = 0;
+  for (i = 0; i < n; i++) {
+    if (tasks[i].finish_tick > tasks[i].creation_tick)
+      sTurn +=
+          HAL_Timer_TicksToUs(tasks[i].finish_tick - tasks[i].creation_tick);
+    if (tasks[i].first_run_tick > tasks[i].creation_tick)
+      sResp +=
+          HAL_Timer_TicksToUs(tasks[i].first_run_tick - tasks[i].creation_tick);
+    sRun += HAL_Timer_TicksToUs(tasks[i].total_ticks);
+  }
+  r->avg_turn_us = n > 0 ? sTurn / n : 0;
+  r->avg_resp_us = n > 0 ? sResp / n : 0;
+  r->avg_run_us = n > 0 ? sRun / n : 0;
+  r->mem_peak = MEM_GetPeakUsage();
+
+  SCHED_PrintStats();
+}
+
+/* Helper to pad decimal output to fixed width */
+static void put_dec_pad(uint64_t val, int width) {
+  /* Count digits */
+  int digits = 1;
+  uint64_t v = val;
+  while (v >= 10) {
+    v /= 10;
+    digits++;
+  }
+  int pad;
+  for (pad = digits; pad < width; pad++)
+    HAL_UART_PutString(" ");
+  HAL_UART_PutDec(val);
+}
+
+static void print_table(void) {
+  HAL_UART_PutString(
+      "\n==========================================================\n");
+  HAL_UART_PutString("  SECTION 3: Benchmark Comparison Table\n");
+  HAL_UART_PutString(
+      "==========================================================\n");
+  HAL_UART_PutString("  Algorithm    |Total(us)|CSw "
+                     "|AvgTurn(us)|AvgResp(us)|AvgRun(us)|Mem(KB)\n");
+  HAL_UART_PutString("  "
+                     "-------------|---------|----|-----------|-----------|----"
+                     "-----|---------\n");
+
+  int i;
+  for (i = 0; i < nres; i++) {
+    BResult *r = &res[i];
+    const char *nm = SCHED_PolicyName(r->pol);
+
+    HAL_UART_PutString("  ");
+    HAL_UART_PutString(nm);
+    int plen = 0;
+    const char *pp = nm;
+    while (*pp++) {
+      plen++;
+    }
+    int pad;
+    for (pad = plen; pad < 14; pad++)
+      HAL_UART_PutString(" ");
+
+    HAL_UART_PutString("|");
+    put_dec_pad(r->total_us, 9);
+    HAL_UART_PutString("|");
+    put_dec_pad(r->switches, 4);
+    HAL_UART_PutString("|");
+    put_dec_pad(r->avg_turn_us, 11);
+    HAL_UART_PutString("|");
+    put_dec_pad(r->avg_resp_us, 11);
+    HAL_UART_PutString("|");
+    put_dec_pad(r->avg_run_us, 9);
+    HAL_UART_PutString("|");
+    put_dec_pad(r->mem_peak / 1024, 9);
+    HAL_UART_PutString("\n");
+  }
+}
+
+/* ================================================================== */
+/*  Kernel Entry                                                      */
+/* ================================================================== */
 
 void kernel_main(void) {
-    run_api_tests();
-    while(1){__asm__ volatile("wfe");}
+  HAL_UART_Init();
+
+  HAL_UART_PutString("\n");
+  HAL_UART_PutString(
+      "==========================================================\n");
+  HAL_UART_PutString("  MiniOS v0.3 - 7-Algorithm Scheduler Benchmark Suite\n");
+  HAL_UART_PutString("  ARM64 Unikernel for ML Inference\n");
+  HAL_UART_PutString(
+      "==========================================================\n");
+
+  HAL_UART_PutString("\n  ---- Emulation Environment ----\n");
+  HAL_UART_PutString("  Platform       : QEMU virt (ARM64 / AArch64)\n");
+  HAL_UART_PutString("  CPU Model      : Cortex-A53 (emulated)\n");
+  HAL_UART_PutString("  RAM            : 512 MB DDR\n");
+  HAL_UART_PutString("  Exception Level: EL");
+  HAL_UART_PutDec(get_current_el());
+  HAL_UART_PutString("\n");
+  HAL_UART_PutString("  OS Type        : Unikernel (single address space)\n");
+  HAL_UART_PutString(
+      "  Execution Model: Cooperative (tasks yield explicitly)\n");
+  HAL_UART_PutString("  Memory Alloc   : Static bump allocator, 64B aligned\n");
+  HAL_UART_PutString("  Toolchain      : aarch64-linux-gnu-gcc (-O2)\n");
+  HAL_UART_PutString("  Docker Image   : ubuntu:22.04 + qemu-system-arm\n");
+
+  install_vectors();
+  HAL_MMU_Init();
+
+  HAL_Timer_Init();
+  HAL_UART_PutString("  Timer Freq     : ");
+  HAL_UART_PutDec(HAL_Timer_GetFreqHz() / 1000000);
+  HAL_UART_PutString(" MHz\n");
+
+  size_t heap_size = (size_t)(_heap_end - _heap_start);
+  MEM_Init((void *)_heap_start, heap_size);
+  HAL_UART_PutString("  Heap Size      : ");
+  HAL_UART_PutDec(heap_size / 1024);
+  HAL_UART_PutString(" KB\n");
+
+  /* ---- API Tests ---- */
+  run_api_tests();
+
+  /* ---- Benchmarks ---- */
+  HAL_UART_PutString(
+      "\n==========================================================\n");
+  HAL_UART_PutString("  SECTION 2: Scheduler Algorithm Benchmarks\n");
+  HAL_UART_PutString(
+      "==========================================================\n");
+  HAL_UART_PutString("  Workloads (ML inference pipeline):\n");
+  HAL_UART_PutString("    Conv2D  : 4KB tensor, 5000 iters, yield/1000, p=1\n");
+  HAL_UART_PutString("    MatMul  : 2KB tensor, 3000 iters, yield/1000, p=2\n");
+  HAL_UART_PutString("    Softmax : 512B tensor, 2000 iters, yield/500, p=3\n");
+  HAL_UART_PutString("    ReLU    : 512B tensor, 1000 iters, yield/500, p=4\n");
+  HAL_UART_PutString("    Add     : 256B tensor, 500 iters, yield/500, p=5\n");
+  HAL_UART_PutString("  Memory reset between benchmarks (bump allocator).\n");
+
+  nres = 0;
+  run_bench(SCHED_POLICY_FCFS, &res[nres++]);
+  run_bench(SCHED_POLICY_SJF, &res[nres++]);
+  run_bench(SCHED_POLICY_RR, &res[nres++]);
+  run_bench(SCHED_POLICY_HRRN, &res[nres++]);
+  run_bench(SCHED_POLICY_PRIORITY, &res[nres++]);
+  run_bench(SCHED_POLICY_MLQ, &res[nres++]);
+  run_bench(SCHED_POLICY_LOTTERY, &res[nres++]);
+
+  /* ---- Summary ---- */
+  print_table();
+
+  HAL_UART_PutString("\n  All benchmarks complete.\n");
+  while (1) {
+    __asm__ volatile("wfe");
+  }
 }
