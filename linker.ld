@@ -2,16 +2,11 @@
  * linker.ld — Linker script for MiniOS ARM64 unikernel
  *
  * Memory layout for QEMU virt machine:
- *   RAM starts at 0x40000000
- *   Stack at 0x40800000 (8MB into RAM), grows downward
+ *   RAM starts at 0x40000000 (512 MB)
  *
- * Sections are laid out sequentially:
- *   .text    → Code (starts at 0x40000000)
- *   .rodata  → Read-only data
- *   .data    → Initialized data
- *   .bss     → Zero-initialized data
- *
- * The entry point is _start in boot.S
+ * Stack placed near the top of RAM to give maximum heap space.
+ * Heap starts just after BSS and extends to 256 KB below the stack.
+ * This allows ML tensor buffers up to ~500 MB (SRS PR-004).
  */
 
 ENTRY(_start)
@@ -26,13 +21,8 @@ SECTIONS
     /* ---- Code section ---- */
     .text : {
         _text_start = .;
-
-        /* boot.S must be first — it contains the entry point */
         *(.text.boot)
-
-        /* All other code */
         *(.text .text.*)
-
         _text_end = .;
     } > RAM
 
@@ -43,14 +33,14 @@ SECTIONS
         _rodata_end = .;
     } > RAM
 
-    /* ---- Initialized data ---- */
+    /* ---- Initialised data ---- */
     .data : ALIGN(4096) {
         _data_start = .;
         *(.data .data.*)
         _data_end = .;
     } > RAM
 
-    /* ---- Zero-initialized data ---- */
+    /* ---- Zero-initialised data ---- */
     .bss : ALIGN(4096) {
         _bss_start = .;
         *(.bss .bss.*)
@@ -58,19 +48,20 @@ SECTIONS
         _bss_end = .;
     } > RAM
 
-    /* ---- Stack ---- */
-    /* Stack grows downward from _stack_top.
-     * We place it 8MB from RAM origin to leave room
-     * for code and data below.
+    /*
+     * Stack top: 64 KB from the very end of RAM.
+     * The kernel boot stack is at most a few hundred bytes deep, so
+     * 64 KB of headroom before the end of RAM is ample.
      */
-    _stack_top = ORIGIN(RAM) + 0x800000;   /* 0x40800000 */
+    _stack_top = ORIGIN(RAM) + LENGTH(RAM) - 0x10000;
 
-    /* ---- Heap region (for future memory allocator) ---- */
-    /* Starts after BSS, before stack */
+    /*
+     * Heap: from end of BSS to 256 KB below the stack top.
+     * 256 KB guard prevents stack-overflow silent corruption.
+     */
     _heap_start = ALIGN(_bss_end, 4096);
-    _heap_end   = _stack_top - 0x10000;    /* 64KB below stack top */
+    _heap_end   = _stack_top - 0x40000;
 
-    /* Discard unneeded sections */
     /DISCARD/ : {
         *(.comment)
         *(.note*)

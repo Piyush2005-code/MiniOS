@@ -112,3 +112,13 @@ Stack → near top of 512 MB RAM, grows downward
 
 **Note:** Timer callbacks / system tick counter are out of scope for this
 sprint.  The caller integrates via the IRQ handler directly.
+
+### Mar 1 — Memory manager integration + linker script update
+- `linker.ld` updated:
+  - Stack moved from 8 MB offset to `ORIGIN(RAM) + LENGTH(RAM) - 64 KB`
+    (near top of 512 MB RAM).
+  - `_heap_end` = `_stack_top - 256 KB` to leave a guard for stack overflow.
+  - Available heap grows from ~7.9 MB to ~499 MB.
+- `kernel_main` updated to call `KMEM_Init()` after MMU init.
+- Build confirmed: `KMEM` reports ~523 944 KB free heap in QEMU.
+- GIC and Timer init will follow in the next commit.

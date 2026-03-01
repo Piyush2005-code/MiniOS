@@ -2,27 +2,23 @@
  * @file main.c
  * @brief MiniOS kernel entry point
  *
- * This is the first C function called after boot.S sets up
- * the stack and zeroes BSS. It initializes all hardware
- * subsystems and enters the idle loop.
- *
- * After this function completes initialization, the system
- * is ready for the ML runtime components (memory allocator,
- * graph parser, execution engine) to be built on top.
+ * Initialises hardware subsystems in order, then enters the idle WFE loop.
+ * Memory manager (KMEM) is now integrated.  GIC and Timer will be added
+ * in the following commit once the HAL drivers are verified.
  */
 
 #include "types.h"
 #include "status.h"
 #include "hal/uart.h"
 #include "hal/mmu.h"
+#include "hal/arch.h"
+#include "kernel/kmem.h"
 
-/* ------------------------------------------------------------------ */
-/*  External symbols from vectors.S                                   */
-/* ------------------------------------------------------------------ */
+/* External symbol from vectors.S */
 extern void _vector_table(void);
 
 /* ------------------------------------------------------------------ */
-/*  Exception handler names for pretty-printing                       */
+/*  Exception handler name table                                      */
 /* ------------------------------------------------------------------ */
 static const char* exception_names[] = {
     "EL1 SP0 Synchronous",     /*  0 */
@@ -54,16 +50,6 @@ static inline void install_vectors(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  Read Current Exception Level                                      */
-/* ------------------------------------------------------------------ */
-static inline uint32_t get_current_el(void)
-{
-    uint64_t el;
-    __asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
-    return (uint32_t)((el >> 2) & 0x3);
-}
-
-/* ------------------------------------------------------------------ */
 /*  Exception handler (called from vectors.S)                         */
 /* ------------------------------------------------------------------ */
 void HAL_Exception_Handler(uint64_t id, uint64_t esr,
@@ -77,51 +63,40 @@ void HAL_Exception_Handler(uint64_t id, uint64_t esr,
         HAL_UART_PutDec(id);
         HAL_UART_PutString(")");
     }
-    HAL_UART_PutString("\n");
-
-    HAL_UART_PutString("  ESR_EL1 : ");
+    HAL_UART_PutString("\n  ESR_EL1 : ");
     HAL_UART_PutHex(esr);
-    HAL_UART_PutString("\n");
-
-    HAL_UART_PutString("  ELR_EL1 : ");
+    HAL_UART_PutString("\n  ELR_EL1 : ");
     HAL_UART_PutHex(elr);
-    HAL_UART_PutString("\n");
-
-    HAL_UART_PutString("  FAR_EL1 : ");
+    HAL_UART_PutString("\n  FAR_EL1 : ");
     HAL_UART_PutHex(far);
-    HAL_UART_PutString("\n");
-
-    HAL_UART_PutString("  System halted.\n");
-
-    /* Halt forever */
-    while (1) {
-        __asm__ volatile("wfe");
-    }
+    HAL_UART_PutString("\n  System halted.\n");
+    while (1) { __asm__ volatile("wfe"); }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Status code to string conversion                                 */
+/*  Status code to string                                             */
 /* ------------------------------------------------------------------ */
 const char* STATUS_ToString(Status status)
 {
     switch (status) {
-        case STATUS_OK:                      return "OK";
-        case STATUS_ERROR_INVALID_ARGUMENT:  return "INVALID_ARGUMENT";
-        case STATUS_ERROR_NOT_SUPPORTED:     return "NOT_SUPPORTED";
-        case STATUS_ERROR_NOT_INITIALIZED:   return "NOT_INITIALIZED";
-        case STATUS_ERROR_OUT_OF_MEMORY:     return "OUT_OF_MEMORY";
-        case STATUS_ERROR_MEMORY_ALIGNMENT:  return "MEMORY_ALIGNMENT";
-        case STATUS_ERROR_MEMORY_PROTECTION: return "MEMORY_PROTECTION";
-        case STATUS_ERROR_HARDWARE_FAULT:    return "HARDWARE_FAULT";
-        case STATUS_ERROR_TIMEOUT:           return "TIMEOUT";
-        case STATUS_ERROR_EXECUTION_FAILED:  return "EXECUTION_FAILED";
-        case STATUS_ERROR_EXECUTION_TIMEOUT: return "EXECUTION_TIMEOUT";
-        case STATUS_ERROR_INVALID_GRAPH:     return "INVALID_GRAPH";
+        case STATUS_OK:                         return "OK";
+        case STATUS_ERROR_INVALID_ARGUMENT:     return "INVALID_ARGUMENT";
+        case STATUS_ERROR_NOT_SUPPORTED:        return "NOT_SUPPORTED";
+        case STATUS_ERROR_NOT_INITIALIZED:      return "NOT_INITIALIZED";
+        case STATUS_ERROR_OUT_OF_MEMORY:        return "OUT_OF_MEMORY";
+        case STATUS_ERROR_MEMORY_ALIGNMENT:     return "MEMORY_ALIGNMENT";
+        case STATUS_ERROR_MEMORY_PROTECTION:    return "MEMORY_PROTECTION";
+        case STATUS_ERROR_HARDWARE_FAULT:       return "HARDWARE_FAULT";
+        case STATUS_ERROR_TIMEOUT:              return "TIMEOUT";
+        case STATUS_ERROR_EXECUTION_FAILED:     return "EXECUTION_FAILED";
+        case STATUS_ERROR_EXECUTION_TIMEOUT:    return "EXECUTION_TIMEOUT";
+        case STATUS_ERROR_INVALID_GRAPH:        return "INVALID_GRAPH";
         case STATUS_ERROR_UNSUPPORTED_OPERATOR: return "UNSUPPORTED_OPERATOR";
-        case STATUS_ERROR_SHAPE_MISMATCH:    return "SHAPE_MISMATCH";
-        case STATUS_ERROR_COMM_FAILURE:      return "COMM_FAILURE";
-        case STATUS_ERROR_CRC_MISMATCH:      return "CRC_MISMATCH";
-        default:                             return "UNKNOWN";
+        case STATUS_ERROR_SHAPE_MISMATCH:       return "SHAPE_MISMATCH";
+        case STATUS_ERROR_COMM_FAILURE:         return "COMM_FAILURE";
+        case STATUS_ERROR_CRC_MISMATCH:         return "CRC_MISMATCH";
+        case STATUS_ERROR_POOL_EXHAUSTED:       return "POOL_EXHAUSTED";
+        default:                                return "UNKNOWN";
     }
 }
 
@@ -132,52 +107,45 @@ void kernel_main(void)
 {
     Status status;
 
-    /* ---- Step 1: Initialize UART for serial output ---- */
+    /* 1. UART */
     status = HAL_UART_Init();
-
-    /* Print boot banner */
-    HAL_UART_PutString("\n");
-    HAL_UART_PutString("======================================\n");
-    HAL_UART_PutString("  MiniOS v0.1 - ARM64 Unikernel\n");
-    HAL_UART_PutString("  ML Inference for ARM64 Devices\n");
-    HAL_UART_PutString("======================================\n");
-    HAL_UART_PutString("\n");
-
-    /* Report UART status */
-    HAL_UART_PutString("[BOOT] UART initialized: ");
+    HAL_UART_PutString("\n======================================\n");
+    HAL_UART_PutString("  MiniOS v0.2 - ARM64 Unikernel\n");
+    HAL_UART_PutString("  Kernel API Sprint 1\n");
+    HAL_UART_PutString("======================================\n\n");
+    HAL_UART_PutString("[BOOT] UART: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
-    /* Report current exception level */
-    uint32_t el = get_current_el();
-    HAL_UART_PutString("[BOOT] Running at EL");
-    HAL_UART_PutDec(el);
+    /* Report EL */
+    HAL_UART_PutString("[BOOT] EL: ");
+    HAL_UART_PutDec(arch_get_el());
     HAL_UART_PutString("\n");
 
-    /* ---- Step 2: Install exception vector table ---- */
-    HAL_UART_PutString("[BOOT] Installing exception vectors...\n");
+    /* 2. Exception vectors */
     install_vectors();
     HAL_UART_PutString("[BOOT] Exception vectors installed\n");
 
-    /* ---- Step 3: Initialize MMU and caches ---- */
-    HAL_UART_PutString("[BOOT] Initializing MMU...\n");
+    /* 3. MMU */
     status = HAL_MMU_Init();
-    HAL_UART_PutString("[BOOT] MMU status: ");
+    HAL_UART_PutString("[BOOT] MMU: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
-    /* ---- Boot complete ---- */
-    HAL_UART_PutString("\n");
-    HAL_UART_PutString("[BOOT] =============================\n");
-    HAL_UART_PutString("[BOOT]  All subsystems initialized\n");
-    HAL_UART_PutString("[BOOT]  Ready for C development!\n");
-    HAL_UART_PutString("[BOOT] =============================\n");
-    HAL_UART_PutString("\n");
-    HAL_UART_PutString("[BOOT] Entering idle loop...\n");
+    /* 4. Kernel memory manager */
+    status = KMEM_Init();
+    HAL_UART_PutString("[BOOT] KMEM: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("  (free: ");
+    HAL_UART_PutDec((uint32_t)(KMEM_GetFreeSpace() / 1024));
+    HAL_UART_PutString(" KB)\n");
+
+    /* GIC and Timer will be integrated in the next commit */
+
+    HAL_UART_PutString("\n[BOOT] Kernel API layer ready\n");
+    HAL_UART_PutString("[BOOT] Entering idle loop (WFE)...\n");
     HAL_UART_PutString("       (Ctrl+A then X to exit QEMU)\n");
 
-    /* ---- Idle loop ---- */
-    /* Future: this will be replaced by the ML runtime main loop */
     while (1) {
         __asm__ volatile("wfe");
     }
