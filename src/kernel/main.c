@@ -4,17 +4,23 @@
  *
  * This is the first C function called after boot.S sets up
  * the stack and zeroes BSS. It initializes all hardware
- * subsystems and enters the idle loop.
+ * subsystems, the kernel memory manager, the GIC interrupt
+ * controller, the ARM Generic Timer, and the cooperative
+ * thread scheduler, then starts multithreaded execution.
  *
- * After this function completes initialization, the system
- * is ready for the ML runtime components (memory allocator,
- * graph parser, execution engine) to be built on top.
+ * The timer fires periodic IRQs to wake sleeping threads.
+ * Thread switching is cooperative (explicit yield points).
  */
 
 #include "types.h"
 #include "status.h"
 #include "hal/uart.h"
 #include "hal/mmu.h"
+#include "hal/arch.h"
+#include "hal/gic.h"
+#include "hal/timer.h"
+#include "kernel/kmem.h"
+#include "kernel/thread.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols from vectors.S                                   */
@@ -121,8 +127,105 @@ const char* STATUS_ToString(Status status)
         case STATUS_ERROR_SHAPE_MISMATCH:    return "SHAPE_MISMATCH";
         case STATUS_ERROR_COMM_FAILURE:      return "COMM_FAILURE";
         case STATUS_ERROR_CRC_MISMATCH:      return "CRC_MISMATCH";
+        case STATUS_ERROR_THREAD_LIMIT:      return "THREAD_LIMIT";
+        case STATUS_ERROR_SCHEDULER_ACTIVE:  return "SCHEDULER_ACTIVE";
+        case STATUS_ERROR_POOL_EXHAUSTED:    return "POOL_EXHAUSTED";
         default:                             return "UNKNOWN";
     }
+}
+
+/* ------------------------------------------------------------------ */
+/*  IRQ dispatcher (called from vectors.S _irq_handler_full)          */
+/* ------------------------------------------------------------------ */
+void HAL_IRQ_Handler(void)
+{
+    uint32_t iar = HAL_GIC_Acknowledge();
+    uint32_t irq_id = iar & 0x3FF;
+
+    if (irq_id == IRQ_TIMER_PHYS) {
+        /* Acknowledge and reload the timer */
+        HAL_Timer_HandleIRQ();
+
+        /* Update scheduler: wake sleeping threads */
+        SCHED_TimerTick();
+    } else if (irq_id < 1020) {
+        /* Unexpected interrupt — log and continue */
+        HAL_UART_PutString("[IRQ] Unhandled INTID ");
+        HAL_UART_PutDec(irq_id);
+        HAL_UART_PutString("\n");
+    }
+    /* irq_id >= 1020: spurious — no EOI needed */
+
+    if (irq_id < 1020) {
+        HAL_GIC_EndOfInterrupt(iar);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Demo thread: simulated ML inference workload                      */
+/* ------------------------------------------------------------------ */
+static void inference_thread(void *arg)
+{
+    (void)arg;
+    const uint32_t iterations = 5;
+
+    HAL_UART_PutString("[INFER] Inference thread started\n");
+
+    for (uint32_t i = 0; i < iterations; i++) {
+        uint64_t start = HAL_Timer_GetTicks();
+
+        HAL_UART_PutString("[INFER] Iteration ");
+        HAL_UART_PutDec(i + 1);
+        HAL_UART_PutString("/");
+        HAL_UART_PutDec(iterations);
+
+        /* Simulate operator work — busy-wait ~50 ms */
+        HAL_Timer_DelayUs(50000);
+
+        uint64_t elapsed = HAL_Timer_GetElapsedUs(start);
+        HAL_UART_PutString("  (");
+        HAL_UART_PutDec((uint32_t)(elapsed / 1000));
+        HAL_UART_PutString(" ms)\n");
+
+        /* Cooperative yield between operators */
+        THREAD_Yield();
+    }
+
+    HAL_UART_PutString("[INFER] Inference complete\n");
+    /* Thread returns → trampoline calls THREAD_Exit */
+}
+
+/* ------------------------------------------------------------------ */
+/*  Demo thread: memory & thread monitor                              */
+/* ------------------------------------------------------------------ */
+static void monitor_thread(void *arg)
+{
+    (void)arg;
+    uint32_t tick = 0;
+
+    HAL_UART_PutString("[MON  ] Monitor thread started\n");
+
+    while (tick < 8) {
+        kmem_stats_t stats;
+        KMEM_GetStats(&stats);
+
+        HAL_UART_PutString("[MON  ] tick=");
+        HAL_UART_PutDec(tick);
+        HAL_UART_PutString("  heap ");
+        HAL_UART_PutDec((uint32_t)(stats.heap_used / 1024));
+        HAL_UART_PutString("KB / ");
+        HAL_UART_PutDec((uint32_t)(stats.heap_total / 1024));
+        HAL_UART_PutString("KB  threads=");
+        HAL_UART_PutDec(SCHED_GetThreadCount());
+        HAL_UART_PutString("  uptime=");
+        HAL_UART_PutDec((uint32_t)SCHED_GetUptime());
+        HAL_UART_PutString("ms\n");
+
+        tick++;
+        THREAD_Sleep(100);   /* Sleep 100 ms, let others run */
+    }
+
+    HAL_UART_PutString("[MON  ] Monitor exiting\n");
 }
 
 /* ------------------------------------------------------------------ */
@@ -138,18 +241,17 @@ void kernel_main(void)
     /* Print boot banner */
     HAL_UART_PutString("\n");
     HAL_UART_PutString("======================================\n");
-    HAL_UART_PutString("  MiniOS v0.1 - ARM64 Unikernel\n");
-    HAL_UART_PutString("  ML Inference for ARM64 Devices\n");
+    HAL_UART_PutString("  MiniOS v0.2 - ARM64 Unikernel\n");
+    HAL_UART_PutString("  ML Inference with Multithreading\n");
     HAL_UART_PutString("======================================\n");
     HAL_UART_PutString("\n");
 
-    /* Report UART status */
     HAL_UART_PutString("[BOOT] UART initialized: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
     /* Report current exception level */
-    uint32_t el = get_current_el();
+    uint32_t el = arch_get_el();
     HAL_UART_PutString("[BOOT] Running at EL");
     HAL_UART_PutDec(el);
     HAL_UART_PutString("\n");
@@ -166,19 +268,71 @@ void kernel_main(void)
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
-    /* ---- Boot complete ---- */
+    /* ---- Step 4: Initialize kernel memory manager ---- */
+    HAL_UART_PutString("[BOOT] Initializing memory manager...\n");
+    status = KMEM_Init();
+    HAL_UART_PutString("[BOOT] KMEM status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
-    HAL_UART_PutString("[BOOT] =============================\n");
-    HAL_UART_PutString("[BOOT]  All subsystems initialized\n");
-    HAL_UART_PutString("[BOOT]  Ready for C development!\n");
-    HAL_UART_PutString("[BOOT] =============================\n");
-    HAL_UART_PutString("\n");
-    HAL_UART_PutString("[BOOT] Entering idle loop...\n");
-    HAL_UART_PutString("       (Ctrl+A then X to exit QEMU)\n");
+    HAL_UART_PutString("[BOOT] Heap free: ");
+    HAL_UART_PutDec((uint32_t)(KMEM_GetFreeSpace() / 1024));
+    HAL_UART_PutString(" KB\n");
 
-    /* ---- Idle loop ---- */
-    /* Future: this will be replaced by the ML runtime main loop */
-    while (1) {
-        __asm__ volatile("wfe");
-    }
+    /* ---- Step 5: Initialize GIC (interrupt controller) ---- */
+    HAL_UART_PutString("[BOOT] Initializing GIC...\n");
+    status = HAL_GIC_Init();
+    HAL_UART_PutString("[BOOT] GIC status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 6: Initialize Timer ---- */
+    HAL_UART_PutString("[BOOT] Initializing timer...\n");
+    status = HAL_Timer_Init();
+    HAL_Timer_SetInterval(10000);  /* 10 ms tick (100 Hz) */
+    HAL_GIC_EnableIRQ(IRQ_TIMER_PHYS);
+    HAL_GIC_SetPriority(IRQ_TIMER_PHYS, 0xA0);
+    HAL_UART_PutString("[BOOT] Timer status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("  (10ms tick)\n");
+
+    /* ---- Step 7: Initialize Scheduler ---- */
+    HAL_UART_PutString("[BOOT] Initializing scheduler...\n");
+    status = SCHED_Init();
+    HAL_UART_PutString("[BOOT] Scheduler status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8: Create application threads ---- */
+    HAL_UART_PutString("[BOOT] Creating threads...\n");
+    thread_t *t_infer = NULL;
+    thread_t *t_mon   = NULL;
+
+    status = THREAD_Create(&t_infer, "inference", inference_thread,
+                           NULL, THREAD_PRIORITY_NORMAL, 0);
+    HAL_UART_PutString("[BOOT]   inference: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    status = THREAD_Create(&t_mon, "monitor", monitor_thread,
+                           NULL, THREAD_PRIORITY_LOW, 0);
+    HAL_UART_PutString("[BOOT]   monitor  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 9: Enable interrupts and start timer ---- */
+    HAL_UART_PutString("[BOOT] Enabling interrupts...\n");
+    HAL_Timer_Enable();
+    arch_enable_irq();
+
+    /* ---- Step 10: Start scheduler (does not return) ---- */
+    HAL_UART_PutString("\n");
+    HAL_UART_PutString("[BOOT] ==============================\n");
+    HAL_UART_PutString("[BOOT]  Starting scheduler\n");
+    HAL_UART_PutString("[BOOT]  Threads: ");
+    HAL_UART_PutDec(SCHED_GetThreadCount());
+    HAL_UART_PutString("\n");
+    HAL_UART_PutString("[BOOT] ==============================\n");
+    HAL_UART_PutString("\n");
+
+    SCHED_Start();    /* Enters idle loop — never returns */
 }
