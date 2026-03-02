@@ -4,7 +4,7 @@
 # ============================================================================
 
 # ---- Toolchain ----
-CROSS    = aarch64-elf-
+CROSS    = aarch64-linux-gnu-
 CC       = $(CROSS)gcc
 AS       = $(CROSS)as
 LD       = $(CROSS)ld
@@ -44,11 +44,15 @@ LDFLAGS  = -nostdlib \
 # ---- Source files ----
 # Assembly sources (order matters: boot.S must be first for linker)
 ASM_SRCS = $(SRC_DIR)/boot/boot.S \
-           $(SRC_DIR)/boot/vectors.S
+           $(SRC_DIR)/boot/vectors.S \
+           $(SRC_DIR)/kernel/context_switch.S
 
 # C sources
 C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
+           $(SRC_DIR)/hal/timer.c \
+           $(SRC_DIR)/kernel/mem.c \
+           $(SRC_DIR)/kernel/sched.c \
            $(SRC_DIR)/kernel/main.c
 
 # ---- Object files ----

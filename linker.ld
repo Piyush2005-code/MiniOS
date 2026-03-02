@@ -58,17 +58,20 @@ SECTIONS
         _bss_end = .;
     } > RAM
 
+    /* ---- Kernel Heap ---- */
+    /* Used by the bump allocator (MEM_Init).
+     * Starts after BSS, page-aligned.
+     * Extends up to 128KB below the stack top.
+     */
+    _heap_start = ALIGN(_bss_end, 4096);
+    _heap_end   = ORIGIN(RAM) + 0x780000;  /* 0x40780000 */
+
     /* ---- Stack ---- */
-    /* Stack grows downward from _stack_top.
-     * We place it 8MB from RAM origin to leave room
-     * for code and data below.
+    /* Main kernel stack: 512KB (grows downward).
+     * Stack top at 8MB from RAM origin.
+     * Guard gap of 128KB between heap and stack.
      */
     _stack_top = ORIGIN(RAM) + 0x800000;   /* 0x40800000 */
-
-    /* ---- Heap region (for future memory allocator) ---- */
-    /* Starts after BSS, before stack */
-    _heap_start = ALIGN(_bss_end, 4096);
-    _heap_end   = _stack_top - 0x10000;    /* 64KB below stack top */
 
     /* Discard unneeded sections */
     /DISCARD/ : {
