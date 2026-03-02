@@ -2,8 +2,8 @@
  * @file status.h
  * @brief Status codes and error handling for MiniOS
  *
- * All functions in MiniOS return Status codes following
- * the convention defined in the SRS error handling pattern.
+ * All public functions in MiniOS return a Status code.
+ * The convention mirrors common embedded OS patterns.
  */
 
 #ifndef MINIOS_STATUS_H
@@ -30,7 +30,7 @@ typedef enum {
     STATUS_ERROR_EXECUTION_FAILED,
     STATUS_ERROR_EXECUTION_TIMEOUT,
 
-    /* Graph/ML errors (future) */
+    /* Graph / ML errors (future) */
     STATUS_ERROR_INVALID_GRAPH,
     STATUS_ERROR_UNSUPPORTED_OPERATOR,
     STATUS_ERROR_SHAPE_MISMATCH,
@@ -39,13 +39,14 @@ typedef enum {
     STATUS_ERROR_COMM_FAILURE,
     STATUS_ERROR_CRC_MISMATCH,
 
-    STATUS_ERROR_COUNT  /* Sentinel, must be last */
+    /* Allocator errors (pool allocator — Sprint 2) */
+    STATUS_ERROR_POOL_EXHAUSTED,
+
+    STATUS_ERROR_COUNT   /* sentinel — keep last */
 } Status;
 
 /**
- * @brief Convert status code to human-readable string
- * @param[in] status The status code
- * @return String representation of the status
+ * @brief Convert a Status code to a human-readable string.
  */
 const char* STATUS_ToString(Status status);
 

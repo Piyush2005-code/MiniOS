@@ -122,3 +122,33 @@ sprint.  The caller integrates via the IRQ handler directly.
 - `kernel_main` updated to call `KMEM_Init()` after MMU init.
 - Build confirmed: `KMEM` reports ~523 944 KB free heap in QEMU.
 - GIC and Timer init will follow in the next commit.
+
+### Mar 2 — GIC + Timer integration, status codes, Sprint 1 wrap-up
+- Added `STATUS_ERROR_POOL_EXHAUSTED` to `include/status.h` (pool allocator
+  work is planned for Sprint 2).
+- `kernel_main` updated to initialise GIC and Timer after KMEM:
+  - GIC initialised with full SPI route table and CPU interface PMR/BPR.
+  - Timer initialised (not yet enabled for periodic IRQ).
+  - 1 ms delay smoke-test using `HAL_Timer_GetTicks` / `HAL_Timer_GetElapsedUs`.
+- Timer IRQ + periodic tick counter deferred to Sprint 2 (scheduled next week).
+
+---
+
+## Sprint 1 Summary — Kernel API Bare Minimum
+
+### Deliverables
+| Component | File(s) | Status |
+|-----------|---------|--------|
+| ARM64 helpers | `include/hal/arch.h` | ✅ Done |
+| String library | `include/lib/string.h`, `src/lib/string.c` | ✅ Done |
+| Memory manager | `include/kernel/kmem.h`, `src/kernel/kmem.c` | ✅ Done (bump only) |
+| GIC driver | `include/hal/gic.h`, `src/hal/gic.c` | ✅ Done |
+| Timer driver | `include/hal/timer.h`, `src/hal/timer.c` | ✅ Done (poll/delay) |
+| Status codes | `include/status.h` | ✅ Updated |
+
+### Known Limitations / Sprint 2 Backlog
+- **No arena allocator** — per-inference reset-able memory region needed by ML runtime.
+- **No pool allocator** — fixed-size object recycling for future TCBs and graph nodes.
+- **No thread/scheduler** — context switching, `THREAD_Create`, cooperative yield.
+- **No periodic timer IRQ** — `HAL_Timer_Enable` works but no ISR integration yet.
+- **No wfe/wfi helpers in arch.h** — will be added alongside idle thread.

@@ -1,10 +1,18 @@
 /**
  * @file main.c
- * @brief MiniOS kernel entry point
+ * @brief MiniOS kernel entry point — Kernel API Sprint 1 (complete)
  *
- * Initialises hardware subsystems in order, then enters the idle WFE loop.
- * Memory manager (KMEM) is now integrated.  GIC and Timer will be added
- * in the following commit once the HAL drivers are verified.
+ * Boot sequence:
+ *   1. UART init
+ *   2. Exception vectors
+ *   3. MMU + caches
+ *   4. Kernel memory manager (KMEM)
+ *   5. GICv2 interrupt controller
+ *   6. ARM Generic Timer (disabled — no periodic IRQ yet)
+ *   7. Idle WFE loop
+ *
+ * Next sprint: enable timer IRQ, add cooperative scheduler, implement
+ * arena and pool allocators for ML inference workloads.
  */
 
 #include "types.h"
@@ -12,14 +20,12 @@
 #include "hal/uart.h"
 #include "hal/mmu.h"
 #include "hal/arch.h"
+#include "hal/gic.h"
+#include "hal/timer.h"
 #include "kernel/kmem.h"
 
-/* External symbol from vectors.S */
 extern void _vector_table(void);
 
-/* ------------------------------------------------------------------ */
-/*  Exception handler name table                                      */
-/* ------------------------------------------------------------------ */
 static const char* exception_names[] = {
     "EL1 SP0 Synchronous",     /*  0 */
     "EL1 SP0 IRQ",             /*  1 */
@@ -39,9 +45,6 @@ static const char* exception_names[] = {
     "EL0 AArch32 SError",      /* 15 */
 };
 
-/* ------------------------------------------------------------------ */
-/*  Install exception vector table                                    */
-/* ------------------------------------------------------------------ */
 static inline void install_vectors(void)
 {
     uint64_t vbar = (uint64_t)(uintptr_t)&_vector_table;
@@ -49,9 +52,6 @@ static inline void install_vectors(void)
     __asm__ volatile("isb");
 }
 
-/* ------------------------------------------------------------------ */
-/*  Exception handler (called from vectors.S)                         */
-/* ------------------------------------------------------------------ */
 void HAL_Exception_Handler(uint64_t id, uint64_t esr,
                            uint64_t elr, uint64_t far)
 {
@@ -73,9 +73,6 @@ void HAL_Exception_Handler(uint64_t id, uint64_t esr,
     while (1) { __asm__ volatile("wfe"); }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Status code to string                                             */
-/* ------------------------------------------------------------------ */
 const char* STATUS_ToString(Status status)
 {
     switch (status) {
@@ -100,14 +97,11 @@ const char* STATUS_ToString(Status status)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Kernel entry point                                                */
-/* ------------------------------------------------------------------ */
 void kernel_main(void)
 {
     Status status;
 
-    /* 1. UART */
+    /* ---- 1. UART ---- */
     status = HAL_UART_Init();
     HAL_UART_PutString("\n======================================\n");
     HAL_UART_PutString("  MiniOS v0.2 - ARM64 Unikernel\n");
@@ -117,22 +111,21 @@ void kernel_main(void)
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
-    /* Report EL */
     HAL_UART_PutString("[BOOT] EL: ");
     HAL_UART_PutDec(arch_get_el());
     HAL_UART_PutString("\n");
 
-    /* 2. Exception vectors */
+    /* ---- 2. Exception vectors ---- */
     install_vectors();
     HAL_UART_PutString("[BOOT] Exception vectors installed\n");
 
-    /* 3. MMU */
+    /* ---- 3. MMU ---- */
     status = HAL_MMU_Init();
     HAL_UART_PutString("[BOOT] MMU: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
-    /* 4. Kernel memory manager */
+    /* ---- 4. Kernel memory ---- */
     status = KMEM_Init();
     HAL_UART_PutString("[BOOT] KMEM: ");
     HAL_UART_PutString(STATUS_ToString(status));
@@ -140,11 +133,33 @@ void kernel_main(void)
     HAL_UART_PutDec((uint32_t)(KMEM_GetFreeSpace() / 1024));
     HAL_UART_PutString(" KB)\n");
 
-    /* GIC and Timer will be integrated in the next commit */
+    /* ---- 5. GIC ---- */
+    status = HAL_GIC_Init();
+    HAL_UART_PutString("[BOOT] GIC: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
 
-    HAL_UART_PutString("\n[BOOT] Kernel API layer ready\n");
+    /* ---- 6. Timer (init only — not yet enabled for IRQ) ---- */
+    status = HAL_Timer_Init();
+    HAL_UART_PutString("[BOOT] Timer: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* Quick delay smoke-test */
+    uint64_t t0 = HAL_Timer_GetTicks();
+    HAL_Timer_DelayUs(1000);   /* ~1 ms */
+    uint64_t elapsed = HAL_Timer_GetElapsedUs(t0);
+    HAL_UART_PutString("[BOOT] Timer delay test: ~");
+    HAL_UART_PutDec((uint32_t)elapsed);
+    HAL_UART_PutString(" us\n");
+
+    /* ---- Done ---- */
+    HAL_UART_PutString("\n[BOOT] ==============================\n");
+    HAL_UART_PutString("[BOOT]  Kernel API Sprint 1 complete\n");
+    HAL_UART_PutString("[BOOT]  Subsystems: UART MMU KMEM GIC Timer\n");
+    HAL_UART_PutString("[BOOT]  Next: scheduler / arena / pool\n");
+    HAL_UART_PutString("[BOOT] ==============================\n\n");
     HAL_UART_PutString("[BOOT] Entering idle loop (WFE)...\n");
-    HAL_UART_PutString("       (Ctrl+A then X to exit QEMU)\n");
 
     while (1) {
         __asm__ volatile("wfe");
