@@ -152,3 +152,5 @@ sprint.  The caller integrates via the IRQ handler directly.
 - **No thread/scheduler** — context switching, `THREAD_Create`, cooperative yield.
 - **No periodic timer IRQ** — `HAL_Timer_Enable` works but no ISR integration yet.
 - **No wfe/wfi helpers in arch.h** — will be added alongside idle thread.
+
+
