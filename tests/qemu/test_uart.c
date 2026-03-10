@@ -156,6 +156,65 @@ static void test_UT_UART_014(void)
     ta("UT-UART-014", 1);
 }
 
+static void test_UT_UART_015(void)
+{
+    HAL_UART_PutString("UT-UART-015 hex=");
+    HAL_UART_PutHex(0xFF);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-015", 1);
+}
+
+static void test_UT_UART_016(void)
+{
+    /* Full 64-bit value */
+    HAL_UART_PutString("UT-UART-016 hex=");
+    HAL_UART_PutHex(0xDEADBEEFCAFEBABEULL);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-016", 1);
+}
+
+static void test_UT_UART_017(void)
+{
+    /* Small value: leading zeros suppressed */
+    HAL_UART_PutString("UT-UART-017 hex=");
+    HAL_UART_PutHex(0x5);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-017", 1);
+}
+
+static void test_UT_UART_018(void)
+{
+    HAL_UART_PutString("UT-UART-018 dec=");
+    HAL_UART_PutDec(0);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-018", 1);
+}
+
+static void test_UT_UART_019(void)
+{
+    HAL_UART_PutString("UT-UART-019 dec=");
+    HAL_UART_PutDec(7);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-019", 1);
+}
+
+static void test_UT_UART_020(void)
+{
+    HAL_UART_PutString("UT-UART-020 dec=");
+    HAL_UART_PutDec(12345678);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-020", 1);
+}
+
+static void test_UT_UART_021(void)
+{
+    /* Maximum uint64 — must not overflow buffer */
+    HAL_UART_PutString("UT-UART-021 dec=");
+    HAL_UART_PutDec(0xFFFFFFFFFFFFFFFFULL);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-021", 1);
+}
+
 
 void run_uart_tests(int *pass, int *fail)
 {
