@@ -62,7 +62,7 @@ _vector_table:
         EXCEPTION_STUB 4
 
     VECTOR_ENTRY _vec_el1_spx_irq
-        EXCEPTION_STUB 5
+        b       _irq_handler_full
 
     VECTOR_ENTRY _vec_el1_spx_fiq
         EXCEPTION_STUB 6
@@ -126,3 +126,79 @@ _exception_handler:
 .Lexc_halt:
     wfe
     b       .Lexc_halt
+
+
+/* ------------------------------------------------------------------ */
+/*  Full IRQ handler for EL1 SPx                                      */
+/*                                                                    */
+/*  Saves all general-purpose registers, ELR_EL1, and SPSR_EL1       */
+/*  to the current stack, calls the C-level IRQ dispatcher, then      */
+/*  restores everything and returns with eret.                        */
+/*                                                                    */
+/*  This is a non-preemptive handler: the interrupted thread's        */
+/*  execution resumes after the handler returns. Thread switching     */
+/*  only happens at cooperative yield points.                         */
+/*                                                                    */
+/*  Stack frame layout (272 bytes, 16-byte aligned):                  */
+/*    [sp, #0]   - [sp, #240]: x0-x30 (31 regs, 248 bytes)          */
+/*    [sp, #248] - [sp, #263]: ELR_EL1, SPSR_EL1                     */
+/*    [sp, #264] - [sp, #271]: padding                               */
+/* ------------------------------------------------------------------ */
+
+.global _irq_handler_full
+_irq_handler_full:
+    sub     sp, sp, #272
+
+    /* Save x0, x1 first (we need them as scratch for ELR/SPSR) */
+    stp     x0, x1, [sp, #0]
+
+    /* Read and save ELR/SPSR before clobbering any more regs */
+    mrs     x0, elr_el1
+    mrs     x1, spsr_el1
+    stp     x0, x1, [sp, #248]
+
+    /* Save remaining general-purpose registers */
+    stp     x2, x3,   [sp, #16]
+    stp     x4, x5,   [sp, #32]
+    stp     x6, x7,   [sp, #48]
+    stp     x8, x9,   [sp, #64]
+    stp     x10, x11, [sp, #80]
+    stp     x12, x13, [sp, #96]
+    stp     x14, x15, [sp, #112]
+    stp     x16, x17, [sp, #128]
+    stp     x18, x19, [sp, #144]
+    stp     x20, x21, [sp, #160]
+    stp     x22, x23, [sp, #176]
+    stp     x24, x25, [sp, #192]
+    stp     x26, x27, [sp, #208]
+    stp     x28, x29, [sp, #224]
+    str     x30,      [sp, #240]
+
+    /* Call C-level IRQ dispatcher (defined in main.c) */
+    bl      HAL_IRQ_Handler
+
+    /* Restore ELR and SPSR */
+    ldp     x0, x1, [sp, #248]
+    msr     elr_el1, x0
+    msr     spsr_el1, x1
+
+    /* Restore all general-purpose registers */
+    ldp     x0, x1,   [sp, #0]
+    ldp     x2, x3,   [sp, #16]
+    ldp     x4, x5,   [sp, #32]
+    ldp     x6, x7,   [sp, #48]
+    ldp     x8, x9,   [sp, #64]
+    ldp     x10, x11, [sp, #80]
+    ldp     x12, x13, [sp, #96]
+    ldp     x14, x15, [sp, #112]
+    ldp     x16, x17, [sp, #128]
+    ldp     x18, x19, [sp, #144]
+    ldp     x20, x21, [sp, #160]
+    ldp     x22, x23, [sp, #176]
+    ldp     x24, x25, [sp, #192]
+    ldp     x26, x27, [sp, #208]
+    ldp     x28, x29, [sp, #224]
+    ldr     x30,      [sp, #240]
+
+    add     sp, sp, #272
+    eret

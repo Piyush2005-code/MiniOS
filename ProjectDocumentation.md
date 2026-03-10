@@ -111,5 +111,5 @@
 
 ## References
 - ARM Architecture Reference Manual ARMv8-A.
-- IEEE 830-1998 Guidelines for Software Requirements Specifications.
+- IEEE 830-1998 Guidelines for Software Requirements Specifications
 - ONNX Specification for Model Compatibility.

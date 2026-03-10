@@ -39,6 +39,13 @@ typedef enum {
     STATUS_ERROR_COMM_FAILURE,
     STATUS_ERROR_CRC_MISMATCH,
 
+    /* Thread / scheduler errors */
+    STATUS_ERROR_THREAD_LIMIT,
+    STATUS_ERROR_SCHEDULER_ACTIVE,
+
+    /* Pool / arena errors */
+    STATUS_ERROR_POOL_EXHAUSTED,
+
     STATUS_ERROR_COUNT  /* Sentinel, must be last */
 } Status;
 
