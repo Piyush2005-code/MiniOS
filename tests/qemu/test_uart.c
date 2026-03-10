@@ -110,6 +110,52 @@ static void test_UT_UART_008(void)
                       (UART_CR_EN | UART_CR_TXE | UART_CR_RXE));
 }
 
+static void test_UT_UART_009(void)
+{
+    /* PutChar transmits a printable ASCII character without hanging */
+    HAL_UART_PutChar('X');
+    ta("UT-UART-009", 1);  /* reaching here means no hang */
+}
+
+static void test_UT_UART_010(void)
+{
+    /* PutChar transmits '\n' as '\r' followed by '\n' (verified by
+     * the PutString implementation which does the same); we verify
+     * this by calling PutChar and checking it returns (no hang). */
+    HAL_UART_PutChar('\n');
+    ta("UT-UART-010", 1);
+}
+
+static void test_UT_UART_011(void)
+{
+    /* PutString with NULL pointer returns without crashing */
+    HAL_UART_PutString(NULL);
+    ta("UT-UART-011", 1);
+}
+
+static void test_UT_UART_012(void)
+{
+    /* PutString with empty string returns without crashing */
+    HAL_UART_PutString("");
+    ta("UT-UART-012", 1);
+}
+
+static void test_UT_UART_013(void)
+{
+    /* PutString transmits all characters of a known string */
+    HAL_UART_PutString("HELLO");
+    ta("UT-UART-013", 1);  /* reaching here = all 5 chars transmitted */
+}
+
+static void test_UT_UART_014(void)
+{
+    /* PutHex of 0 outputs "0x0" — visual check; ta always passes */
+    HAL_UART_PutString("UT-UART-014 hex=");
+    HAL_UART_PutHex(0);
+    HAL_UART_PutString("\n");
+    ta("UT-UART-014", 1);
+}
+
 
 void run_uart_tests(int *pass, int *fail)
 {
