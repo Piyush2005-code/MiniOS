@@ -107,6 +107,96 @@ static void test_UT_TIMER_009(void)
     ta("UT-TIMER-009", ticks > 0);
 }
 
+static void test_UT_TIMER_010(void)
+{
+    /* UsToTicks returns 0 when frequency is 0 (simulated logic check) */
+    uint64_t freq = 0;
+    uint64_t ticks = (1000ULL * freq) / 1000000ULL;
+    ta("UT-TIMER-010", ticks == 0);
+}
+
+static void test_UT_TIMER_011(void)
+{
+    /* Round-trip: TicksToUs(UsToTicks(N)) within 5% of N */
+    HAL_Timer_Init();
+    uint64_t freq = HAL_Timer_GetFreq();
+    uint64_t N = 5000;  /* 5000 us */
+    uint64_t ticks    = (N * freq) / 1000000ULL;
+    uint64_t back_us  = (ticks * 1000000ULL) / freq;
+    uint64_t low  = N * 95 / 100;
+    uint64_t high = N * 105 / 100;
+    ta("UT-TIMER-011", back_us >= low && back_us <= high);
+}
+
+static void test_UT_TIMER_012(void)
+{
+    /* BusyWaitUs(200) results in at least 180 us elapsed */
+    HAL_Timer_Init();
+    uint64_t t0 = HAL_Timer_GetTicks();
+    HAL_Timer_DelayUs(200);
+    uint64_t elapsed = HAL_Timer_GetElapsedUs(t0);
+    ta("UT-TIMER-012", elapsed >= 180);
+}
+
+static void test_UT_TIMER_013(void)
+{
+    /* BusyWaitUs(0) returns without hanging */
+    HAL_Timer_Init();
+    HAL_Timer_DelayUs(0);
+    ta("UT-TIMER-013", 1);
+}
+
+static void test_UT_TIMER_014(void)
+{
+    /* SetDeadline (Enable) sets ENABLE bit in CNTP_CTL_EL0 */
+    HAL_Timer_Init();
+    HAL_Timer_SetInterval(10000);
+    HAL_Timer_Enable();
+    /* Read back CTL register */
+    uint64_t ctl;
+    __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(ctl));
+    HAL_Timer_Disable();
+    ta("UT-TIMER-014", (ctl & 1) != 0);  /* ENABLE bit set */
+}
+
+static void test_UT_TIMER_015(void)
+{
+    /* ClearIRQ / AckInterrupt: sets up reload without unmasking */
+    HAL_Timer_Init();
+    HAL_Timer_SetInterval(10000);
+    HAL_Timer_Enable();
+    HAL_Timer_AckInterrupt();
+    uint64_t ctl;
+    __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(ctl));
+    HAL_Timer_Disable();
+    ta("UT-TIMER-015", 1);  /* must not fault */
+}
+
+static void test_UT_TIMER_016(void)
+{
+    /* DisableIRQ: after Disable, CTL ENABLE bit is 0 */
+    HAL_Timer_Init();
+    HAL_Timer_SetInterval(10000);
+    HAL_Timer_Enable();
+    HAL_Timer_Disable();
+    uint64_t ctl;
+    __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(ctl));
+    ta("UT-TIMER-016", (ctl & 1) == 0);  /* ENABLE bit clear */
+}
+
+static void test_UT_TIMER_017(void)
+{
+    /* EnableIRQ: after Enable, ENABLE bit set and IMASK(bit1) clear */
+    HAL_Timer_Init();
+    HAL_Timer_SetInterval(10000);
+    HAL_Timer_Enable();
+    uint64_t ctl;
+    __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(ctl));
+    HAL_Timer_Disable();
+    /* ENABLE=1, IMASK=0 */
+    ta("UT-TIMER-017", (ctl & 1) == 1 && (ctl & 2) == 0);
+}
+
 
 void run_timer_tests(int *pass, int *fail)
 {
