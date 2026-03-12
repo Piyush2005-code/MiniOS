@@ -132,6 +132,65 @@ static void test_UT_MMU_009(void)
     ta("UT-MMU-009", pa == 0x40000000ULL);
 }
 
+static void test_UT_MMU_010(void)
+{
+    /* Entry 1 has PTE_TYPE_BLOCK set */
+    ta("UT-MMU-010", (pte(1) & 0x3ULL) == (uint64_t)PTE_TYPE_BLOCK);
+}
+
+static void test_UT_MMU_011(void)
+{
+    /* Entry 1 has PTE_ATTR_NORMAL (MAIR index 1, bits [4:2] == 0b100 = 4) */
+    ta("UT-MMU-011", (pte(1) & (0x7ULL << 2)) == (uint64_t)PTE_ATTR_NORMAL);
+}
+
+static void test_UT_MMU_012(void)
+{
+    /* Entry 1 has PTE_SH_INNER (inner shareable, bits [9:8] == 0b11) */
+    ta("UT-MMU-012", (pte(1) & (0x3ULL << 8)) == (uint64_t)PTE_SH_INNER);
+}
+
+static void test_UT_MMU_013(void)
+{
+    /* Entry 1 does NOT have PXN or UXN (RAM is executable) */
+    ta("UT-MMU-013",
+       (pte(1) & PTE_PXN) == 0ULL &&
+       (pte(1) & PTE_UXN) == 0ULL);
+}
+
+static void test_UT_MMU_014(void)
+{
+    /* InvalidateTLB executes without triggering a fault */
+    HAL_MMU_InvalidateTLB();
+    ta("UT-MMU-014", 1);
+}
+
+static void test_UT_MMU_015(void)
+{
+    /* CleanInvalidateDCache executes without triggering a fault */
+    HAL_MMU_CleanInvalidateDCache();
+    ta("UT-MMU-015", 1);
+}
+
+static void test_UT_MMU_016(void)
+{
+    /* After Init, a read and write to normal RAM address succeeds */
+    volatile uint32_t *ptr = (volatile uint32_t *)0x40100000UL;
+    *ptr = 0xDEADBEEFUL;
+    uint32_t val = *ptr;
+    ta("UT-MMU-016", val == 0xDEADBEEFUL);
+}
+
+static void test_UT_MMU_017(void)
+{
+    /* MAIR_EL1: device attr at index 0 (0x00), normal WB at index 1 (0xFF) */
+    uint64_t mair;
+    __asm__ volatile("mrs %0, mair_el1" : "=r"(mair));
+    uint8_t attr0 = (uint8_t)((mair >> 0) & 0xFF);
+    uint8_t attr1 = (uint8_t)((mair >> 8) & 0xFF);
+    ta("UT-MMU-017", attr0 == MAIR_DEVICE_nGnRnE && attr1 == MAIR_NORMAL_WB);
+}
+
 
 void run_mmu_tests(int *pass, int *fail)
 {
