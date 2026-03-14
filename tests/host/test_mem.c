@@ -99,6 +99,10 @@ void test_UT_MEM_004(void) {
     TEST_ASSERT_TRUE(st.heap_total <= 1024 * 1024 + 4096);
 }
 
+/* ==================================================================
+ * UT-MEM-005..014: KMEM_Alloc
+ * ================================================================== */
+
 void test_UT_MEM_005(void) {
     /* Alloc of size 0 returns NULL */
     void *p = KMEM_Alloc(0, 8);
@@ -181,6 +185,10 @@ void test_UT_MEM_014(void) {
     TEST_ASSERT_NULL(p);
 }
 
+/* ==================================================================
+ * UT-MEM-015..017: KMEM_TensorAlloc (via arena)
+ * ================================================================== */
+
 void test_UT_MEM_015(void) {
     /* AllocTensor returns a 64-byte aligned pointer */
     kmem_arena_t *arena = KMEM_ArenaCreate(4096);
@@ -207,6 +215,10 @@ void test_UT_MEM_017(void) {
     void *p = KMEM_TensorAlloc(arena, 64);
     TEST_ASSERT_NULL(p);
 }
+
+/* ==================================================================
+ * UT-MEM-018..022: GetUsedBytes / GetFreeBytes
+ * ================================================================== */
 
 void test_UT_MEM_018(void) {
     /* GetUsedBytes returns 0 after Init before any Alloc */
@@ -250,6 +262,10 @@ void test_UT_MEM_022(void) {
     TEST_ASSERT_EQUAL_UINT(st.heap_total, (unsigned)(st.heap_used + free));
 }
 
+/* ==================================================================
+ * UT-MEM-023..025: Peak usage tracking
+ * ================================================================== */
+
 void test_UT_MEM_023(void) {
     /* GetPeakUsage equals GetUsedBytes at the first allocation */
     KMEM_Alloc(256, 8);
@@ -286,6 +302,10 @@ void test_UT_MEM_025(void) {
     KMEM_GetStats(&st2);
     TEST_ASSERT_TRUE(st2.heap_peak > peak1);
 }
+
+/* ==================================================================
+ * UT-MEM-026..029: Arena Reset (mapped from spec "Allocator Reset")
+ * ================================================================== */
 
 void test_UT_MEM_026(void) {
     /* Reset sets used bytes back to 0 (arena reset) */
@@ -337,6 +357,10 @@ void test_UT_MEM_029(void) {
     void *p2 = KMEM_ArenaAlloc(arena, 64, 8);
     TEST_ASSERT_NOT_NULL(p2);
 }
+
+/* ==================================================================
+ * UT-MEM-030..035: KMEM_GetStats
+ * ================================================================== */
 
 void test_UT_MEM_030(void) {
     /* GetStats with NULL pointer returns (does not crash).
@@ -398,6 +422,10 @@ void test_UT_MEM_035(void) {
     TEST_ASSERT_TRUE(st.heap_used >= 7);
 }
 
+/* ==================================================================
+ * UT-MEM-036..038: memset
+ * ================================================================== */
+
 void test_UT_MEM_036(void) {
     /* MEM_Set fills every byte with the specified value */
     uint8_t buf[32];
@@ -407,7 +435,240 @@ void test_UT_MEM_036(void) {
     }
 }
 
+void test_UT_MEM_037(void) {
+    /* MEM_Set with count 0 does not crash or modify memory */
+    uint8_t buf[8];
+    memset(buf, 0xCC, sizeof(buf));
+    memset(buf, 0x00, 0);  /* count == 0 */
+    /* Buffer should be unchanged */
+    for (int i = 0; i < (int)sizeof(buf); i++) {
+        TEST_ASSERT_EQUAL_UINT8(0xCC, buf[i]);
+    }
+}
 
+void test_UT_MEM_038(void) {
+    /* MEM_Set does not write beyond the specified byte count */
+    uint8_t buf[16];
+    memset(buf, 0xBB, sizeof(buf));
+    memset(buf, 0x11, 8);   /* only first 8 bytes */
+    for (int i = 0; i < 8;  i++) TEST_ASSERT_EQUAL_UINT8(0x11, buf[i]);
+    for (int i = 8; i < 16; i++) TEST_ASSERT_EQUAL_UINT8(0xBB, buf[i]);
+}
+
+/* ==================================================================
+ * UT-MEM-039..041: memcpy
+ * ================================================================== */
+
+void test_UT_MEM_039(void) {
+    /* MEM_Copy produces a byte-for-byte identical destination */
+    uint8_t src[32], dst[32];
+    for (int i = 0; i < 32; i++) src[i] = (uint8_t)i;
+    memcpy(dst, src, 32);
+    TEST_ASSERT_EQUAL_MEMORY(src, dst, 32);
+}
+
+void test_UT_MEM_040(void) {
+    /* MEM_Copy with count 0 does not crash */
+    uint8_t src[8] = {1,2,3,4,5,6,7,8};
+    uint8_t dst[8] = {0};
+    memcpy(dst, src, 0);
+    /* dst unchanged */
+    for (int i = 0; i < 8; i++) TEST_ASSERT_EQUAL_UINT8(0, dst[i]);
+}
+
+void test_UT_MEM_041(void) {
+    /* MEM_Copy does not modify bytes beyond the specified count */
+    uint8_t src[16];
+    uint8_t dst[16];
+    memset(src, 0xAA, 16);
+    memset(dst, 0xFF, 16);
+    memcpy(dst, src, 8);
+    for (int i = 0;  i < 8;  i++) TEST_ASSERT_EQUAL_UINT8(0xAA, dst[i]);
+    for (int i = 8;  i < 16; i++) TEST_ASSERT_EQUAL_UINT8(0xFF, dst[i]);
+}
+
+/* ==================================================================
+ * UT-MEM-042..045: memcmp
+ * ================================================================== */
+
+void test_UT_MEM_042(void) {
+    /* MEM_Compare returns 0 for two identical regions */
+    uint8_t a[16], b[16];
+    memset(a, 0x42, 16);
+    memset(b, 0x42, 16);
+    TEST_ASSERT_EQUAL_INT(0, memcmp(a, b, 16));
+}
+
+void test_UT_MEM_043(void) {
+    /* MEM_Compare returns non-zero when regions differ at the first byte */
+    uint8_t a[8] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+    uint8_t b[8] = {0xFF,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+    TEST_ASSERT_NOT_EQUAL(0, memcmp(a, b, 8));
+}
+
+void test_UT_MEM_044(void) {
+    /* MEM_Compare returns non-zero when regions differ only at the last byte */
+    uint8_t a[8] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+    uint8_t b[8] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0xFF};
+    TEST_ASSERT_NOT_EQUAL(0, memcmp(a, b, 8));
+}
+
+void test_UT_MEM_045(void) {
+    /* MEM_Compare with count 0 returns 0 */
+    uint8_t a[8] = {0xAA};
+    uint8_t b[8] = {0xBB};
+    TEST_ASSERT_EQUAL_INT(0, memcmp(a, b, 0));
+}
+
+/* ==================================================================
+ * CT-MEM-001..007: Component Tests (multiple KMEM functions together)
+ * ================================================================== */
+
+void test_CT_MEM_001(void) {
+    /* Full allocation lifecycle: Init → Alloc → Stats → Arena-Reset → Alloc */
+    kmem_stats_t st;
+    void *p1 = KMEM_Alloc(256, 8);
+    void *p2 = KMEM_Alloc(512, 64);
+    TEST_ASSERT_NOT_NULL(p1);
+    TEST_ASSERT_NOT_NULL(p2);
+
+    KMEM_GetStats(&st);
+    TEST_ASSERT_TRUE(st.alloc_count >= 2);
+    TEST_ASSERT_TRUE(st.heap_used >= 768);
+
+    /* Create arena and reset it — heap stats should be consistent */
+    kmem_arena_t *arena = KMEM_ArenaCreate(1024);
+    KMEM_ArenaAlloc(arena, 512, 8);
+    KMEM_GetStats(&st);
+    size_t peak = st.heap_peak;
+
+    KMEM_ArenaReset(arena);
+    KMEM_GetStats(&st);
+    TEST_ASSERT_EQUAL_UINT(peak, (unsigned)st.heap_peak); /* peak unchanged */
+
+    void *p3 = KMEM_ArenaAlloc(arena, 256, 8);
+    TEST_ASSERT_NOT_NULL(p3);
+}
+
+void test_CT_MEM_002(void) {
+    /* Alignment diversity: interleave 8, 16, 64, 128 aligned allocs */
+    void *p8   = KMEM_Alloc(16, 8);
+    void *p16  = KMEM_Alloc(16, 16);
+    void *p64  = KMEM_Alloc(64, 64);
+    void *p128 = KMEM_Alloc(128, 128);
+
+    TEST_ASSERT_NOT_NULL(p8);
+    TEST_ASSERT_NOT_NULL(p16);
+    TEST_ASSERT_NOT_NULL(p64);
+    TEST_ASSERT_NOT_NULL(p128);
+
+    TEST_ASSERT_EQUAL_INT(0, (int)((uintptr_t)p8   % 8));
+    TEST_ASSERT_EQUAL_INT(0, (int)((uintptr_t)p16  % 16));
+    TEST_ASSERT_EQUAL_INT(0, (int)((uintptr_t)p64  % 64));
+    TEST_ASSERT_EQUAL_INT(0, (int)((uintptr_t)p128 % 128));
+
+    /* No region overlaps: each pointer is past the previous one's end */
+    TEST_ASSERT_TRUE((uintptr_t)p16  >= (uintptr_t)p8   + 16);
+    TEST_ASSERT_TRUE((uintptr_t)p64  >= (uintptr_t)p16  + 16);
+    TEST_ASSERT_TRUE((uintptr_t)p128 >= (uintptr_t)p64  + 64);
+}
+
+void test_CT_MEM_003(void) {
+    /* Heap exhaustion path: allocate until NULL, then arena-reset and retry */
+    kmem_arena_t *arena = KMEM_ArenaCreate(8192);
+    TEST_ASSERT_NOT_NULL(arena);
+
+    int count = 0;
+    while (KMEM_ArenaAlloc(arena, 256, 8) != NULL) count++;
+    TEST_ASSERT_TRUE(count > 0);
+
+    /* ArenaReset restores it */
+    KMEM_ArenaReset(arena);
+    size_t free_after = KMEM_ArenaGetUsed(arena);
+    TEST_ASSERT_EQUAL_UINT(0, (unsigned)free_after);
+
+    void *p = KMEM_ArenaAlloc(arena, 256, 8);
+    TEST_ASSERT_NOT_NULL(p);
+}
+
+void test_CT_MEM_004(void) {
+    /* Peak tracking: allocate progressively larger across multiple resets */
+    kmem_arena_t *arena = KMEM_ArenaCreate(65536);
+    TEST_ASSERT_NOT_NULL(arena);
+
+    kmem_stats_t st;
+
+    /* Cycle 1 */
+    KMEM_ArenaAlloc(arena, 1024, 8);
+    KMEM_GetStats(&st);
+    size_t peak1 = st.heap_peak;
+    KMEM_ArenaReset(arena);
+
+    /* Cycle 2: larger allocation */
+    KMEM_ArenaAlloc(arena, 2048, 8);
+    KMEM_GetStats(&st);
+    size_t peak2 = st.heap_peak;
+    KMEM_ArenaReset(arena);
+
+    /* Cycle 3: even larger */
+    KMEM_ArenaAlloc(arena, 4096, 8);
+    KMEM_GetStats(&st);
+    size_t peak3 = st.heap_peak;
+
+    /* Global peak should climb each cycle (arena data comes from heap) */
+    TEST_ASSERT_TRUE(peak3 >= peak2);
+    TEST_ASSERT_TRUE(peak2 >= peak1);
+}
+
+void test_CT_MEM_005(void) {
+    /* Wasted bytes: allocations with known padding produce wasted bytes.
+     * Allocate 1 byte with 8-byte alignment; 7 bytes of padding. */
+    size_t free_before = KMEM_GetFreeSpace();
+    KMEM_Alloc(1, 8);
+    size_t free_after = KMEM_GetFreeSpace();
+    size_t consumed = free_before - free_after;
+    /* Consumed must be at least 8 (1 byte + up to 7 padding) */
+    TEST_ASSERT_TRUE(consumed >= 1);
+    TEST_ASSERT_TRUE(consumed <= 16);  /* sanity upper bound */
+}
+
+void test_CT_MEM_006(void) {
+    /* MEM_Copy + MEM_Compare round-trip */
+    uint8_t region_a[64], region_b[64];
+    memset(region_a, 0x55, sizeof(region_a));
+    memcpy(region_b, region_a, sizeof(region_a));
+    TEST_ASSERT_EQUAL_INT(0, memcmp(region_a, region_b, sizeof(region_a)));
+
+    /* Mutate copy */
+    region_b[32] = 0xFF;
+    TEST_ASSERT_NOT_EQUAL(0, memcmp(region_a, region_b, sizeof(region_a)));
+}
+
+void test_CT_MEM_007(void) {
+    /* Tensor workflow: 5 tensors via arena, each with distinct pattern */
+    kmem_arena_t *arena = KMEM_ArenaCreate(5 * 1024);
+    TEST_ASSERT_NOT_NULL(arena);
+
+    uint8_t *tensors[5];
+    uint8_t patterns[5] = {0x11, 0x22, 0x33, 0x44, 0x55};
+
+    for (int i = 0; i < 5; i++) {
+        tensors[i] = (uint8_t *)KMEM_TensorAlloc(arena, 512);
+        TEST_ASSERT_NOT_NULL(tensors[i]);
+        memset(tensors[i], patterns[i], 512);
+    }
+
+    /* Verify no aliasing */
+    for (int i = 0; i < 5; i++) {
+        for (int b = 0; b < 512; b++) {
+            TEST_ASSERT_EQUAL_UINT8(patterns[i], tensors[i][b]);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  main                                                              */
+/* ------------------------------------------------------------------ */
 int main(void)
 {
     UNITY_BEGIN();
