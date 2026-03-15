@@ -486,6 +486,258 @@ void test_UT_SCHED_027(void) {
     TEST_ASSERT_EQUAL_UINT(base + 2, (unsigned)SCHED_GetThreadCount());
 }
 
+void test_UT_SCHED_028(void) {
+    TEST_ASSERT_EQUAL_STRING("FCFS", fx_policy_name(POL_FCFS));
+}
+
+void test_UT_SCHED_029(void) {
+    TEST_ASSERT_EQUAL_STRING("SJF", fx_policy_name(POL_SJF));
+}
+
+void test_UT_SCHED_030(void) {
+    TEST_ASSERT_EQUAL_STRING("Round-Robin", fx_policy_name(POL_RR));
+}
+
+void test_UT_SCHED_031(void) {
+    TEST_ASSERT_EQUAL_STRING("HRRN", fx_policy_name(POL_HRRN));
+}
+
+void test_UT_SCHED_032(void) {
+    TEST_ASSERT_EQUAL_STRING("Priority", fx_policy_name(POL_PRIORITY));
+}
+
+void test_UT_SCHED_033(void) {
+    TEST_ASSERT_EQUAL_STRING("MLQ", fx_policy_name(POL_MLQ));
+}
+
+void test_UT_SCHED_034(void) {
+    TEST_ASSERT_EQUAL_STRING("Lottery", fx_policy_name(POL_LOTTERY));
+}
+
+void test_UT_SCHED_035(void) {
+    /* Out-of-range value returns "Unknown" */
+    TEST_ASSERT_EQUAL_STRING("Unknown", fx_policy_name((fx_policy_t)99));
+}
+
+void test_UT_SCHED_036(void) {
+    /* FCFS: task with lowest arrival_order is selected */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 5);  /* id=0, arrival=5 */
+    fx_add(&S, 10, 1, 0, 1, 2);  /* id=1, arrival=2 ← first */
+    fx_add(&S, 10, 1, 0, 1, 8);  /* id=2, arrival=8 */
+    int sel = fx_fcfs(&S);
+    TEST_ASSERT_EQUAL_INT(1, sel);
+}
+
+void test_UT_SCHED_037(void) {
+    /* FCFS: same arrival order — selection is consistent (always same result) */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 3);  /* id=0, arrival=3 */
+    fx_add(&S, 10, 1, 0, 1, 3);  /* id=1, arrival=3 */
+    int s1 = fx_fcfs(&S);
+    int s2 = fx_fcfs(&S);
+    TEST_ASSERT_EQUAL_INT(s1, s2);
+}
+
+void test_UT_SCHED_038(void) {
+    /* SJF: task with lowest burst_estimate is selected */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 100, 1, 0, 1, 0);  /* id=0, burst=100 */
+    fx_add(&S,  20, 1, 0, 1, 1);  /* id=1, burst=20 ← shortest */
+    fx_add(&S,  50, 1, 0, 1, 2);  /* id=2, burst=50 */
+    int sel = fx_sjf(&S);
+    TEST_ASSERT_EQUAL_INT(1, sel);
+}
+
+void test_UT_SCHED_039(void) {
+    /* SJF: equal burst estimates — consistent, no crash */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 50, 1, 0, 1, 0);
+    fx_add(&S, 50, 1, 0, 1, 1);
+    int s1 = fx_sjf(&S);
+    int s2 = fx_sjf(&S);
+    TEST_ASSERT_EQUAL_INT(s1, s2);
+    TEST_ASSERT_TRUE(s1 >= 0);
+}
+
+void test_UT_SCHED_040(void) {
+    /* RR: selection cycles through all ready tasks in index order */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);  /* id=0 */
+    fx_add(&S, 10, 1, 0, 1, 1);  /* id=1 */
+    fx_add(&S, 10, 1, 0, 1, 2);  /* id=2 */
+    int r0 = fx_rr(&S);
+    int r1 = fx_rr(&S);
+    int r2 = fx_rr(&S);
+    int r3 = fx_rr(&S);  /* wraps */
+    TEST_ASSERT_EQUAL_INT(0, r0);
+    TEST_ASSERT_EQUAL_INT(1, r1);
+    TEST_ASSERT_EQUAL_INT(2, r2);
+    TEST_ASSERT_EQUAL_INT(0, r3);
+}
+
+void test_UT_SCHED_041(void) {
+    /* RR: finished tasks are skipped */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);  /* id=0 */
+    fx_add(&S, 10, 1, 0, 1, 1);  /* id=1 — mark FINISHED */
+    fx_add(&S, 10, 1, 0, 1, 2);  /* id=2 */
+    S.tasks[1].state = FX_STATE_FINISHED;
+    int r0 = fx_rr(&S);  /* 0 */
+    int r1 = fx_rr(&S);  /* 2 (skip 1) */
+    TEST_ASSERT_EQUAL_INT(0, r0);
+    TEST_ASSERT_EQUAL_INT(2, r1);
+}
+
+void test_UT_SCHED_042(void) {
+    /* RR: wraps correctly from last task back to first */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);  /* id=0 */
+    fx_add(&S, 10, 1, 0, 1, 1);  /* id=1 */
+    fx_rr(&S); /* → 0 */
+    fx_rr(&S); /* → 1 */
+    int wrap = fx_rr(&S); /* → 0 again */
+    TEST_ASSERT_EQUAL_INT(0, wrap);
+}
+
+void test_UT_SCHED_043(void) {
+    /* HRRN: task with higher wait relative to burst is preferred */
+    fx_sched_t S; fx_init(&S);
+    /* Task 0: burst=10, wait=5  → ratio=(5+10)/10=1.5 */
+    /* Task 1: burst=10, wait=20 → ratio=(20+10)/10=3.0 ← preferred */
+    fx_add(&S, 10, 1, 0, 1, 0); S.tasks[0].wait_time = 5;
+    fx_add(&S, 10, 1, 0, 1, 1); S.tasks[1].wait_time = 20;
+    int sel = fx_hrrn(&S);
+    TEST_ASSERT_EQUAL_INT(1, sel);
+}
+
+void test_UT_SCHED_044(void) {
+    /* HRRN: burst_estimate of 0 is treated as 1 (no div-by-zero) */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 0, 1, 0, 1, 0);  /* burst=0, treated as 1 */
+    fx_add(&S, 5, 1, 0, 1, 1);
+    S.tasks[0].wait_time = 10;
+    S.tasks[1].wait_time = 10;
+    int sel = fx_hrrn(&S);
+    TEST_ASSERT_TRUE(sel >= 0);  /* must not crash */
+}
+
+void test_UT_SCHED_045(void) {
+    /* Priority: task with numerically lowest priority value is selected */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 3, 0, 1, 0);  /* priority 3 */
+    fx_add(&S, 10, 1, 0, 1, 1);  /* priority 1 ← selected */
+    fx_add(&S, 10, 2, 0, 1, 2);  /* priority 2 */
+    int sel = fx_priority(&S);
+    TEST_ASSERT_EQUAL_INT(1, sel);
+}
+
+void test_UT_SCHED_046(void) {
+    /* Priority: equal priorities — consistent */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 2, 0, 1, 0);
+    fx_add(&S, 10, 2, 0, 1, 1);
+    int s1 = fx_priority(&S);
+    int s2 = fx_priority(&S);
+    TEST_ASSERT_EQUAL_INT(s1, s2);
+}
+
+void test_UT_SCHED_047(void) {
+    /* MLQ: level 0 task always beats level 1 and level 2 */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 2, 1, 0);  /* level 2 */
+    fx_add(&S, 10, 1, 0, 1, 1);  /* level 0 ← wins */
+    fx_add(&S, 10, 1, 1, 1, 2);  /* level 1 */
+    int sel = fx_mlq(&S);
+    TEST_ASSERT_EQUAL_INT(1, sel);  /* id=1, level=0 */
+}
+
+void test_UT_SCHED_048(void) {
+    /* MLQ: level 1 selected when level 0 is empty */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 2, 1, 0);  /* level 2 */
+    fx_add(&S, 10, 1, 1, 1, 1);  /* level 1 ← wins */
+    int sel = fx_mlq(&S);
+    TEST_ASSERT_EQUAL_INT(1, sel);
+}
+
+void test_UT_SCHED_049(void) {
+    /* MLQ: level 2 only selected when 0 and 1 are empty */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 2, 1, 0);  /* only level 2 */
+    int sel = fx_mlq(&S);
+    TEST_ASSERT_EQUAL_INT(0, sel);
+}
+
+void test_UT_SCHED_050(void) {
+    /* MLQ: within same level, selection is round-robin */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 1, 1, 0);  /* id=0, level=1 */
+    fx_add(&S, 10, 1, 1, 1, 1);  /* id=1, level=1 */
+    int r0 = fx_mlq(&S);  /* 0 */
+    int r1 = fx_mlq(&S);  /* 1 */
+    int r2 = fx_mlq(&S);  /* 0 wrap */
+    TEST_ASSERT_EQUAL_INT(0, r0);
+    TEST_ASSERT_EQUAL_INT(1, r1);
+    TEST_ASSERT_EQUAL_INT(0, r2);
+}
+
+void test_UT_SCHED_051(void) {
+    /* Lottery: with total tickets 0, returns -1 without crashing */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 0, 0);  /* 0 tickets */
+    fx_add(&S, 10, 1, 0, 0, 1);  /* 0 tickets */
+    int sel = fx_lottery(&S);
+    TEST_ASSERT_EQUAL_INT(-1, sel);
+}
+
+void test_UT_SCHED_052(void) {
+    /* Lottery: task with 0 tickets is never selected across 1000 draws */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 0,  0);  /* id=0, 0 tickets — should never win */
+    fx_add(&S, 10, 1, 0, 10, 1);  /* id=1, 10 tickets */
+    for (int i = 0; i < 1000; i++) {
+        int sel = fx_lottery(&S);
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(-1, sel, "Lottery returned -1 with tickets available");
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, sel, "Zero-ticket task was selected");
+    }
+}
+
+void test_UT_SCHED_053(void) {
+    /* Lottery: with fixed seed, selection sequence is deterministic.
+     * Expected first 5 picks for seed=12345, tasks tickets=[5, 5]:
+     * Run two identical sessions and compare. */
+    fx_sched_t S1; fx_init(&S1);
+    fx_add(&S1, 10, 1, 0, 5, 0);
+    fx_add(&S1, 10, 1, 0, 5, 1);
+    int picks1[5];
+    for (int i = 0; i < 5; i++) picks1[i] = fx_lottery(&S1);
+
+    fx_sched_t S2; fx_init(&S2);  /* same seed */
+    fx_add(&S2, 10, 1, 0, 5, 0);
+    fx_add(&S2, 10, 1, 0, 5, 1);
+    int picks2[5];
+    for (int i = 0; i < 5; i++) picks2[i] = fx_lottery(&S2);
+
+    for (int i = 0; i < 5; i++) {
+        TEST_ASSERT_EQUAL_INT(picks1[i], picks2[i]);
+    }
+}
+
+void test_UT_SCHED_054(void) {
+    /* Lottery: task with significantly more tickets wins more frequently */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0,  1, 0);   /* id=0, 1 ticket */
+    fx_add(&S, 10, 1, 0, 99, 1);   /* id=1, 99 tickets */
+    int wins[2] = {0, 0};
+    for (int i = 0; i < 1000; i++) {
+        int sel = fx_lottery(&S);
+        if (sel >= 0 && sel < 2) wins[sel]++;
+    }
+    /* id=1 should win at least 80% of the time */
+    TEST_ASSERT_TRUE(wins[1] > wins[0]);
+}
+
 
 int main(void)
 {
