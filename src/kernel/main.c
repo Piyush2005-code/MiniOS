@@ -240,6 +240,7 @@ void kernel_main(void)
 
     /* Print boot banner */
     HAL_UART_PutString("\n");
+    HAL_UART_PutString("Hello, Piyush!!");
     HAL_UART_PutString("======================================\n");
     HAL_UART_PutString("  MiniOS v0.2 - ARM64 Unikernel\n");
     HAL_UART_PutString("  ML Inference with Multithreading\n");
