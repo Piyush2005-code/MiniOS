@@ -3,6 +3,14 @@
  * @brief CRC-16/CCITT-FALSE implementation for MiniOS-NetProtocol
  *
  * @complexity Time O(n), Space O(1) working + 512B table (ROM)
+ *
+ * CHANGE LOG:
+ *   fix: CRC16_Verify residue corrected from 0x0000 to 0x1D0F.
+ *        For CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection),
+ *        running the algorithm over a valid message that already includes
+ *        its own 2-byte CRC appended big-endian produces residue 0x1D0F,
+ *        NOT 0x0000. The previous value caused corrupted frames whose CRC
+ *        happened to compute to 0x0000 to be wrongly accepted.
  */
 
 #include "../include/net/crc16.h"
@@ -63,8 +71,15 @@ uint16_t CRC16_Compute(const uint8_t *data, size_t len)
 bool CRC16_Verify(const uint8_t *data, size_t len)
 {
     if (len < 2) return false;
-    /* Compute CRC over all bytes INCLUDING the trailing 2-byte CRC.
-     * For CCITT-FALSE the residue of a valid frame is 0x1D0F.        */
+    /*
+     * Run CRC-16/CCITT-FALSE over the entire buffer INCLUDING the
+     * trailing 2-byte big-endian CRC appended by the sender.
+     *
+     * For this variant (poly=0x1021, init=0xFFFF, no bit reflection),
+     * the self-check residue of a valid frame is 0x1D0F — NOT 0x0000.
+     * (0x0000 is the residue for CRC-16/IBM / CRC-16/ARC which is the
+     *  reflected variant. Using 0x0000 here was the original bug.)
+     */
     uint16_t residue = CRC16_Compute(data, len);
-    return (residue == 0x0000);
+    return (residue == 0x1D0F);
 }
