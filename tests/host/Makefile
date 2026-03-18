@@ -9,7 +9,13 @@ CFLAGS  = -std=c11 -Wall -Wextra -g \
            -Istubs \
            -I../../include \
            -I../unity \
-           -DUNITY_INCLUDE_DOUBLE
+           -DUNITY_INCLUDE_DOUBLE \
+           -DMINIOS_TYPES_H \
+           -include stdint.h \
+           -include stddef.h \
+           -include stdbool.h \
+           "-DREG32(a)=(*((volatile uint32_t*)(uintptr_t)(a)))" \
+           "-DREG64(a)=(*((volatile uint64_t*)(uintptr_t)(a)))"
 
 UNITY_SRC  = ../unity/unity.c
 
