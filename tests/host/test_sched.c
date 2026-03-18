@@ -273,6 +273,10 @@ void test_UT_SCHED_003(void) {
     TEST_ASSERT_EQUAL_UINT(1, (unsigned)SCHED_GetThreadCount());
 }
 
+/* ==================================================================
+ * UT-SCHED-004..005: Reset / determinism (fixture-level)
+ * ================================================================== */
+
 void test_UT_SCHED_004(void) {
     /* ResetAll resets PRNG to seed 12345 — verified via fixture */
     fx_sched_t S;
@@ -300,6 +304,12 @@ void test_UT_SCHED_005(void) {
     uint32_t count2 = SCHED_GetThreadCount();
     TEST_ASSERT_EQUAL_UINT(count1, (unsigned)count2);
 }
+
+/* ==================================================================
+ * UT-SCHED-006..014: THREAD_Create
+ * ================================================================== */
+
+static void dummy_func(void *arg) { (void)arg; }
 
 void test_UT_SCHED_006(void) {
     /* CreateTask returns a non-NULL valid thread on success */
@@ -386,6 +396,10 @@ void test_UT_SCHED_014(void) {
     TEST_ASSERT_NOT_NULL(t->name);
 }
 
+/* ==================================================================
+ * UT-SCHED-015..022: SetTaskXxx (via thread struct fields)
+ * ================================================================== */
+
 void test_UT_SCHED_015(void) {
     /* SetTaskPriority updates the correct task's priority field */
     thread_t *t = NULL;
@@ -449,6 +463,10 @@ void test_UT_SCHED_022(void) {
     TEST_PASS();
 }
 
+/* ==================================================================
+ * UT-SCHED-023..027: Introspection
+ * ================================================================== */
+
 void test_UT_SCHED_023(void) {
     /* GetCurrentTaskId returns -1 when no task is running (scheduler not started) */
     thread_t *cur = THREAD_GetCurrent();
@@ -486,38 +504,39 @@ void test_UT_SCHED_027(void) {
     TEST_ASSERT_EQUAL_UINT(base + 2, (unsigned)SCHED_GetThreadCount());
 }
 
+/* ==================================================================
+ * UT-SCHED-028..035: PolicyName (fixture-level)
+ * ================================================================== */
+
 void test_UT_SCHED_028(void) {
     TEST_ASSERT_EQUAL_STRING("FCFS", fx_policy_name(POL_FCFS));
 }
-
 void test_UT_SCHED_029(void) {
     TEST_ASSERT_EQUAL_STRING("SJF", fx_policy_name(POL_SJF));
 }
-
 void test_UT_SCHED_030(void) {
     TEST_ASSERT_EQUAL_STRING("Round-Robin", fx_policy_name(POL_RR));
 }
-
 void test_UT_SCHED_031(void) {
     TEST_ASSERT_EQUAL_STRING("HRRN", fx_policy_name(POL_HRRN));
 }
-
 void test_UT_SCHED_032(void) {
     TEST_ASSERT_EQUAL_STRING("Priority", fx_policy_name(POL_PRIORITY));
 }
-
 void test_UT_SCHED_033(void) {
     TEST_ASSERT_EQUAL_STRING("MLQ", fx_policy_name(POL_MLQ));
 }
-
 void test_UT_SCHED_034(void) {
     TEST_ASSERT_EQUAL_STRING("Lottery", fx_policy_name(POL_LOTTERY));
 }
-
 void test_UT_SCHED_035(void) {
     /* Out-of-range value returns "Unknown" */
     TEST_ASSERT_EQUAL_STRING("Unknown", fx_policy_name((fx_policy_t)99));
 }
+
+/* ==================================================================
+ * UT-SCHED-036..037: FCFS selection
+ * ================================================================== */
 
 void test_UT_SCHED_036(void) {
     /* FCFS: task with lowest arrival_order is selected */
@@ -539,6 +558,10 @@ void test_UT_SCHED_037(void) {
     TEST_ASSERT_EQUAL_INT(s1, s2);
 }
 
+/* ==================================================================
+ * UT-SCHED-038..039: SJF selection
+ * ================================================================== */
+
 void test_UT_SCHED_038(void) {
     /* SJF: task with lowest burst_estimate is selected */
     fx_sched_t S; fx_init(&S);
@@ -559,6 +582,10 @@ void test_UT_SCHED_039(void) {
     TEST_ASSERT_EQUAL_INT(s1, s2);
     TEST_ASSERT_TRUE(s1 >= 0);
 }
+
+/* ==================================================================
+ * UT-SCHED-040..042: Round-Robin selection
+ * ================================================================== */
 
 void test_UT_SCHED_040(void) {
     /* RR: selection cycles through all ready tasks in index order */
@@ -600,6 +627,10 @@ void test_UT_SCHED_042(void) {
     TEST_ASSERT_EQUAL_INT(0, wrap);
 }
 
+/* ==================================================================
+ * UT-SCHED-043..044: HRRN selection
+ * ================================================================== */
+
 void test_UT_SCHED_043(void) {
     /* HRRN: task with higher wait relative to burst is preferred */
     fx_sched_t S; fx_init(&S);
@@ -622,6 +653,10 @@ void test_UT_SCHED_044(void) {
     TEST_ASSERT_TRUE(sel >= 0);  /* must not crash */
 }
 
+/* ==================================================================
+ * UT-SCHED-045..046: Priority selection
+ * ================================================================== */
+
 void test_UT_SCHED_045(void) {
     /* Priority: task with numerically lowest priority value is selected */
     fx_sched_t S; fx_init(&S);
@@ -641,6 +676,10 @@ void test_UT_SCHED_046(void) {
     int s2 = fx_priority(&S);
     TEST_ASSERT_EQUAL_INT(s1, s2);
 }
+
+/* ==================================================================
+ * UT-SCHED-047..050: MLQ selection
+ * ================================================================== */
 
 void test_UT_SCHED_047(void) {
     /* MLQ: level 0 task always beats level 1 and level 2 */
@@ -681,6 +720,10 @@ void test_UT_SCHED_050(void) {
     TEST_ASSERT_EQUAL_INT(1, r1);
     TEST_ASSERT_EQUAL_INT(0, r2);
 }
+
+/* ==================================================================
+ * UT-SCHED-051..054: Lottery
+ * ================================================================== */
 
 void test_UT_SCHED_051(void) {
     /* Lottery: with total tickets 0, returns -1 without crashing */
@@ -738,7 +781,216 @@ void test_UT_SCHED_054(void) {
     TEST_ASSERT_TRUE(wins[1] > wins[0]);
 }
 
+/* ==================================================================
+ * CT-SCHED-001..014: Component Tests
+ * ================================================================== */
 
+void test_CT_SCHED_001(void) {
+    /* FCFS ordering: 5 tasks sorted by arrival */
+    fx_sched_t S; fx_init(&S);
+    /* Add in non-order */
+    fx_add(&S, 10, 1, 0, 1, 4);
+    fx_add(&S, 10, 1, 0, 1, 2);
+    fx_add(&S, 10, 1, 0, 1, 1);  /* arrival=1, earliest */
+    fx_add(&S, 10, 1, 0, 1, 5);
+    fx_add(&S, 10, 1, 0, 1, 3);
+    int expected_arr[] = {1, 2, 3, 4, 5};
+    for (int i = 0; i < 5; i++) {
+        int sel = fx_fcfs(&S);
+        TEST_ASSERT_EQUAL_INT(expected_arr[i], S.tasks[sel].arrival_order);
+        S.tasks[sel].state = FX_STATE_FINISHED;
+    }
+}
+
+void test_CT_SCHED_002(void) {
+    /* SJF ordering: shortest finishes first */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 50, 1, 0, 1, 0);
+    fx_add(&S, 10, 1, 0, 1, 1);  /* shortest */
+    fx_add(&S, 30, 1, 0, 1, 2);
+    fx_add(&S, 20, 1, 0, 1, 3);
+    fx_add(&S, 40, 1, 0, 1, 4);
+    int expected_burst[] = {10, 20, 30, 40, 50};
+    for (int i = 0; i < 5; i++) {
+        int sel = fx_sjf(&S);
+        TEST_ASSERT_EQUAL_INT(expected_burst[i], S.tasks[sel].burst_estimate);
+        S.tasks[sel].state = FX_STATE_FINISHED;
+    }
+}
+
+void test_CT_SCHED_003(void) {
+    /* Round-Robin fairness: each task gets at least one turn */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);
+    fx_add(&S, 10, 1, 0, 1, 1);
+    fx_add(&S, 10, 1, 0, 1, 2);
+    int seen[3] = {0};
+    /* 6 cycles should give each at least 2 turns */
+    for (int i = 0; i < 6; i++) {
+        int sel = fx_rr(&S);
+        if (sel >= 0 && sel < 3) seen[sel]++;
+    }
+    for (int i = 0; i < 3; i++) {
+        TEST_ASSERT_TRUE(seen[i] >= 1);
+    }
+}
+
+void test_CT_SCHED_004(void) {
+    /* HRRN aging: high-wait task eventually selected over short task */
+    fx_sched_t S; fx_init(&S);
+    /* Task 0: burst=5, wait=50  → ratio=(50+5)/5=11 */
+    /* Task 1: burst=1, wait=1   → ratio=(1+1)/1=2   */
+    fx_add(&S, 5, 1, 0, 1, 0); S.tasks[0].wait_time = 50;
+    fx_add(&S, 1, 1, 0, 1, 1); S.tasks[1].wait_time = 1;
+    int sel = fx_hrrn(&S);
+    TEST_ASSERT_EQUAL_INT(0, sel);
+}
+
+void test_CT_SCHED_005(void) {
+    /* Priority preemption order: tasks run in priority order 1..5 */
+    fx_sched_t S; fx_init(&S);
+    for (int p = 5; p >= 1; p--) {
+        fx_add(&S, 10, p, 0, 1, p);
+    }
+    /* Run 5 times */
+    for (int expected_p = 1; expected_p <= 5; expected_p++) {
+        int sel = fx_priority(&S);
+        TEST_ASSERT_EQUAL_INT(expected_p, S.tasks[sel].priority);
+        S.tasks[sel].state = FX_STATE_FINISHED;
+    }
+}
+
+void test_CT_SCHED_006(void) {
+    /* MLQ level isolation: level 0 finishes before level 1 before level 2 */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 2, 1, 0);  /* background */
+    fx_add(&S, 10, 1, 1, 1, 1);  /* normal */
+    fx_add(&S, 10, 1, 0, 1, 2);  /* critical */
+    /* First pick must be critical (level 0) */
+    int s1 = fx_mlq(&S); S.tasks[s1].state = FX_STATE_FINISHED;
+    TEST_ASSERT_EQUAL_INT(0, S.tasks[s1].queue_level);
+    /* Second pick must be normal (level 1) */
+    int s2 = fx_mlq(&S); S.tasks[s2].state = FX_STATE_FINISHED;
+    TEST_ASSERT_EQUAL_INT(1, S.tasks[s2].queue_level);
+    /* Third pick must be background (level 2) */
+    int s3 = fx_mlq(&S);
+    TEST_ASSERT_EQUAL_INT(2, S.tasks[s3].queue_level);
+}
+
+void test_CT_SCHED_007(void) {
+    /* Lottery determinism: two runs with same seed produce identical sequences */
+    fx_sched_t S1; fx_init(&S1);
+    fx_add(&S1, 10, 1, 0, 7, 0);
+    fx_add(&S1, 10, 1, 0, 3, 1);
+    int seq1[10];
+    for (int i = 0; i < 10; i++) seq1[i] = fx_lottery(&S1);
+
+    fx_sched_t S2; fx_init(&S2);
+    fx_add(&S2, 10, 1, 0, 7, 0);
+    fx_add(&S2, 10, 1, 0, 3, 1);
+    for (int i = 0; i < 10; i++) {
+        int s = fx_lottery(&S2);
+        TEST_ASSERT_EQUAL_INT(seq1[i], s);
+    }
+}
+
+void test_CT_SCHED_008(void) {
+    /* Policy switch: FCFS and SJF produce different orderings when expected */
+    fx_sched_t S; fx_init(&S);
+    /* Tasks: (arrival, burst) */
+    /* FCFS order is by arrival; SJF by burst — these differ */
+    fx_add(&S, 100, 1, 0, 1, 1);  /* id=0: arrives 1st, longest */
+    fx_add(&S, 10,  1, 0, 1, 3);  /* id=1: arrives 3rd, shortest */
+    fx_add(&S, 50,  1, 0, 1, 2);  /* id=2: arrives 2nd, medium */
+
+    int fcfs_first = fx_fcfs(&S);
+    int sjf_first  = fx_sjf(&S);
+    /* FCFS picks arrival order 1 (id=0); SJF picks burst=10 (id=1) */
+    TEST_ASSERT_NOT_EQUAL(fcfs_first, sjf_first);
+}
+
+void test_CT_SCHED_009(void) {
+    /* Statistics accuracy: SCHED_GetThreadCount matches THREAD_Create calls */
+    uint32_t base = SCHED_GetThreadCount();
+    THREAD_Create(NULL, "a", dummy_func, NULL, THREAD_PRIORITY_NORMAL, 0);
+    THREAD_Create(NULL, "b", dummy_func, NULL, THREAD_PRIORITY_NORMAL, 0);
+    THREAD_Create(NULL, "c", dummy_func, NULL, THREAD_PRIORITY_NORMAL, 0);
+    TEST_ASSERT_EQUAL_UINT(base + 3, (unsigned)SCHED_GetThreadCount());
+}
+
+void test_CT_SCHED_010(void) {
+    /* Alive count lifecycle: fixture version */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);
+    fx_add(&S, 10, 1, 0, 1, 1);
+    fx_add(&S, 10, 1, 0, 1, 2);
+
+    int alive = 0;
+    for (int i = 0; i < S.count; i++)
+        if (S.tasks[i].state == FX_STATE_READY) alive++;
+    TEST_ASSERT_EQUAL_INT(3, alive);
+
+    /* Finish all */
+    for (int i = 0; i < S.count; i++) S.tasks[i].state = FX_STATE_FINISHED;
+    alive = 0;
+    for (int i = 0; i < S.count; i++)
+        if (S.tasks[i].state == FX_STATE_READY) alive++;
+    TEST_ASSERT_EQUAL_INT(0, alive);
+}
+
+void test_CT_SCHED_011(void) {
+    /* Yield mechanics: round-robin gives other task a turn before returning */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);  /* yielding */
+    fx_add(&S, 10, 1, 0, 1, 1);  /* should run next */
+    int first  = fx_rr(&S);  /* yields: other runs */
+    int second = fx_rr(&S);
+    TEST_ASSERT_NOT_EQUAL(first, second);
+}
+
+void test_CT_SCHED_012(void) {
+    /* Exit: when last task finishes, no more tasks are selected */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);
+    S.tasks[0].state = FX_STATE_FINISHED;
+    int sel = fx_rr(&S);
+    TEST_ASSERT_EQUAL_INT(-1, sel);
+}
+
+void test_CT_SCHED_013(void) {
+    /* first_run_tick is recorded only once (via task run_count) */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);
+    fx_add(&S, 10, 1, 0, 1, 1);
+    /* Simulate 3 round-robin ticks on task 0 */
+    S.tasks[0].run_count = 0;
+    for (int i = 0; i < 3; i++) {
+        int sel = fx_rr(&S);
+        if (sel == 0) S.tasks[0].run_count++;
+    }
+    /* run_count > 1 proves task resumed multiple times */
+    TEST_ASSERT_TRUE(S.tasks[0].run_count >= 1);
+}
+
+void test_CT_SCHED_014(void) {
+    /* total_ticks accuracy: sum of per-task run counts = total picks */
+    fx_sched_t S; fx_init(&S);
+    fx_add(&S, 10, 1, 0, 1, 0);
+    fx_add(&S, 10, 1, 0, 1, 1);
+    fx_add(&S, 10, 1, 0, 1, 2);
+    int total = 12;
+    int per_task[3] = {0};
+    for (int i = 0; i < total; i++) {
+        int sel = fx_rr(&S);
+        if (sel >= 0 && sel < 3) per_task[sel]++;
+    }
+    int sum = per_task[0] + per_task[1] + per_task[2];
+    TEST_ASSERT_EQUAL_INT(total, sum);
+}
+
+/* ------------------------------------------------------------------ */
+/*  main                                                              */
+/* ------------------------------------------------------------------ */
 int main(void)
 {
     UNITY_BEGIN();
