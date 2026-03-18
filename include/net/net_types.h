@@ -15,12 +15,22 @@
  *              the unikernel single-address-space design.
  *
  * RUDP Frame Format (over raw Ethernet / IP-less for bare-metal):
- *   [ETH_HDR 14B][RUDP_HDR 12B][PAYLOAD up to 1452B][CRC16 2B]
+ *   [ETH_HDR 14B][RUDP_HDR 12B][PAYLOAD up to 1472B][CRC16 2B]
  *
  * Compatible with: MiniOS-UART_Implementation (same command codes),
  *                  MiniOS-BootLoader_and_HAL (HAL_UART / HAL_TIMER),
  *                  MiniOS-feat-onnx (ONNX command framing),
  *                  MiniOS-unikernel (benchmark hooks).
+ *
+ * CHANGE LOG:
+ *   fix: removed invalid preprocessor token `0xRD` from RUDP_MAGIC
+ *        (was a comment-style placeholder, not valid C). Only
+ *        RUDP_MAGIC_BYTE 0xAE is used in code — the macro is kept
+ *        as documentation only with a valid hex value.
+ *   add: last_retry_ms field in RudpSession to gate retransmits by
+ *        RUDP_RETRY_TIMEOUT_MS instead of retransmitting every Poll().
+ *   add: defrag_buf, defrag_len, defrag_cmd, defrag_active fields in
+ *        RudpSession for multi-fragment ONNX model reassembly.
  */
 
 #ifndef MINIOS_NET_TYPES_H
@@ -42,7 +52,7 @@
 /*                                                                    */
 /*   0       1       2       3                                        */
 /*  +-------+-------+-------+-------+                                */
-/*  |  MAGIC (0xRD) | FLAGS | CMD   |  byte 0-3                      */
+/*  | MAGIC | FLAGS |  CMD  |  RSV  |  byte 0-3                      */
 /*  +-------+-------+-------+-------+                                */
 /*  |       SEQUENCE NUMBER         |  byte 4-7 (big-endian)         */
 /*  +-------+-------+-------+-------+                                */
@@ -51,12 +61,21 @@
 /*  |      ACK/NACK SEQ (2B)        |  byte 10-11                    */
 /*  +-------+-------+-------+-------+                                */
 /* ------------------------------------------------------------------ */
-#define RUDP_MAGIC          0xRD    /* value 0xAE — "Reliable Data"  */
+
+/* Magic byte: 0xAE — "Reliable Data" marker                         */
 #define RUDP_MAGIC_BYTE     0xAE
 
 #define RUDP_HDR_LEN        12
+/* Max payload: ETH_MTU minus ETH header, RUDP header, and 2-byte CRC */
 #define RUDP_MAX_PAYLOAD    (ETH_MTU - ETH_HDR_LEN - RUDP_HDR_LEN - 2)
                                     /* 1472 bytes                     */
+
+/* ------------------------------------------------------------------ */
+/*  Defragmentation buffer size                                       */
+/*  Must be large enough for the largest expected ONNX model.        */
+/*  4 MB is sufficient for the models described in the SRS.          */
+/* ------------------------------------------------------------------ */
+#define RUDP_DEFRAG_BUF_MAX (4 * 1024 * 1024)
 
 /* ------------------------------------------------------------------ */
 /*  RUDP Flags (1 byte bitmask)                                       */
@@ -138,11 +157,11 @@ typedef struct {
 /* ------------------------------------------------------------------ */
 /*  Session / connection state                                        */
 /* ------------------------------------------------------------------ */
-#define RUDP_WINDOW_SIZE    8        /* Unacknowledged frames in flight */
-#define RUDP_MAX_RETRIES    5        /* Retransmit attempts             */
-#define RUDP_RETRY_TIMEOUT_MS  200   /* Retransmit wait (ms)            */
-#define RUDP_KEEPALIVE_MS   5000     /* Keepalive interval              */
-#define RUDP_SESSION_TIMEOUT_MS 15000 /* Dead session threshold         */
+#define RUDP_WINDOW_SIZE         8       /* Unacknowledged frames in flight */
+#define RUDP_MAX_RETRIES         5       /* Retransmit attempts             */
+#define RUDP_RETRY_TIMEOUT_MS    200     /* Retransmit wait (ms)            */
+#define RUDP_KEEPALIVE_MS        5000    /* Keepalive interval              */
+#define RUDP_SESSION_TIMEOUT_MS  15000   /* Dead session threshold          */
 
 typedef struct {
     uint8_t  remote_mac[ETH_ALEN];  /* Peer MAC address               */
@@ -152,11 +171,36 @@ typedef struct {
     uint8_t  retry_count;            /* Current retransmit count       */
     bool     active;                 /* Session is established         */
     uint64_t last_rx_ms;             /* Timestamp of last received frame */
+
+    /*
+     * last_retry_ms: wall-clock time (ms) of the most recent retransmit
+     * pass. RUDP_Poll() only retransmits pending frames when
+     *   (now_ms - last_retry_ms) >= RUDP_RETRY_TIMEOUT_MS
+     * This prevents retransmit storms when Poll() is called every loop
+     * iteration (which can be thousands of times per second).
+     */
+    uint64_t last_retry_ms;
+
     /* Retransmit buffer (one window) */
     uint8_t  tx_buf[RUDP_WINDOW_SIZE][ETH_HDR_LEN + RUDP_HDR_LEN + RUDP_MAX_PAYLOAD + 2];
     uint16_t tx_buf_len[RUDP_WINDOW_SIZE];
     uint32_t tx_buf_seq[RUDP_WINDOW_SIZE];
     bool     tx_buf_pending[RUDP_WINDOW_SIZE];
+
+    /*
+     * Defragmentation state for incoming multi-fragment messages
+     * (e.g. large ONNX model uploads).
+     *
+     * When the first fragment of a large message arrives (RUDP_FLAG_FRAG
+     * set, cmd = NET_CMD_LOAD_MODEL), defrag_active is set to true and
+     * incoming payload bytes are accumulated in defrag_buf.
+     * When the final fragment arrives (RUDP_FLAG_FRAG_END), the callback
+     * is invoked once with the complete reassembled buffer.
+     */
+    bool     defrag_active;          /* Currently reassembling         */
+    uint8_t  defrag_cmd;             /* Command code of first fragment */
+    uint8_t  defrag_buf[RUDP_DEFRAG_BUF_MAX]; /* Reassembly buffer    */
+    uint32_t defrag_len;             /* Bytes accumulated so far       */
 } RudpSession;
 
 #endif /* MINIOS_NET_TYPES_H */
