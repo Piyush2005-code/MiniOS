@@ -91,12 +91,16 @@ void HAL_IRQ_Handler(void)
 /* ------------------------------------------------------------------ */
 static void qemu_exit(int code)
 {
-    /* AArch64 semihosting via HLT #0xF000 */
-    register uint64_t x0 asm("x0") = 0x18;        /* SYS_EXIT */
-    register uint64_t x1 asm("x1") = (uint64_t)(code == 0 ? 0x20026UL : 1UL);
+    /* AArch64 semihosting via HLT #0xF000.
+     * Use plain inline asm with explicit register constraints (C11 compatible). */
+    uint64_t op   = 0x18ULL;                                      /* SYS_EXIT */
+    uint64_t arg  = (uint64_t)(code == 0 ? 0x20026UL : 1UL);
     __asm__ volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
         "hlt #0xF000\n"
-        :: "r"(x0), "r"(x1)
+        :: "r"(op), "r"(arg)
+        : "x0", "x1"
     );
     /* Fallback: halt */
     while (1) arch_wfe();

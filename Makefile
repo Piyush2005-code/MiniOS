@@ -4,7 +4,7 @@
 # ============================================================================
 
 # ---- Toolchain ----
-CROSS    = aarch64-elf-
+CROSS    = aarch64-linux-gnu-
 CC       = $(CROSS)gcc
 AS       = $(CROSS)as
 LD       = $(CROSS)ld
@@ -47,7 +47,24 @@ ASM_SRCS = $(SRC_DIR)/boot/boot.S \
            $(SRC_DIR)/boot/vectors.S \
            $(SRC_DIR)/kernel/context.S
 
-# C sources
+# C sources (kernel_main replaced by test runner when TEST=1)
+ifeq ($(TEST),1)
+C_SRCS   = $(SRC_DIR)/hal/uart.c \
+           $(SRC_DIR)/hal/mmu.c \
+           $(SRC_DIR)/hal/gic.c \
+           $(SRC_DIR)/hal/timer.c \
+           $(SRC_DIR)/lib/string.c \
+           $(SRC_DIR)/kernel/kmem.c \
+           $(SRC_DIR)/kernel/thread.c \
+           tests/qemu/test_uart.c \
+           tests/qemu/test_timer.c \
+           tests/qemu/test_mmu.c \
+           tests/qemu/test_ctx.c \
+           tests/qemu/test_exception.c \
+           tests/qemu/test_system.c \
+           tests/qemu/test_runner_main.c
+CFLAGS  += -DTEST=1 -I$(INC_DIR) -Wno-unused-variable
+else
 C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
            $(SRC_DIR)/hal/gic.c \
@@ -56,10 +73,17 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/kmem.c \
            $(SRC_DIR)/kernel/thread.c \
            $(SRC_DIR)/kernel/main.c
+endif
 
 # ---- Object files ----
 ASM_OBJS = $(patsubst $(SRC_DIR)/%.S, $(OBJ_DIR)/%.o, $(ASM_SRCS))
-C_OBJS   = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(C_SRCS))
+# Kernel C objects (src/ → build/obj/)
+KERNEL_C_SRCS = $(filter $(SRC_DIR)/%, $(C_SRCS))
+KERNEL_C_OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(KERNEL_C_SRCS))
+# Test C objects (tests/ → build/obj/tests/)
+TEST_C_SRCS   = $(filter tests/%, $(C_SRCS))
+TEST_C_OBJS   = $(patsubst %.c, $(OBJ_DIR)/%.o, $(TEST_C_SRCS))
+C_OBJS        = $(KERNEL_C_OBJS) $(TEST_C_OBJS)
 ALL_OBJS = $(ASM_OBJS) $(C_OBJS)
 
 # ---- QEMU ----
@@ -74,7 +98,7 @@ QEMU_FLAGS = -machine virt \
 # Targets
 # ============================================================================
 
-.PHONY: all clean run debug disasm size
+.PHONY: all clean run debug disasm size test_qemu test_qemu_docker
 
 all: $(TARGET_ELF) $(TARGET_BIN)
 	@echo ""
@@ -105,10 +129,28 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
+# ---- Compile test C files ----
+$(OBJ_DIR)/tests/%.o: tests/%.c
+	@echo "[CC]   $<"
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
 # ---- Run in QEMU ----
 run: $(TARGET_ELF)
 	@echo "=== Starting QEMU (Ctrl+A then X to exit) ==="
 	@$(QEMU) $(QEMU_FLAGS)
+
+# ---- Build and run QEMU tests (TEST=1) ----
+test_qemu:
+	@$(MAKE) TEST=1 $(TARGET_ELF)
+	@echo "=== Running QEMU Test Suite ==="
+	@$(QEMU) $(QEMU_FLAGS) -semihosting-config enable=on,target=native ; true
+
+# ---- Build and run QEMU tests inside Docker (no local QEMU required) ----
+test_qemu_docker:
+	@$(MAKE) TEST=1 $(TARGET_ELF)
+	@echo "=== Running QEMU Test Suite (Docker) ==="
+	@bash scripts/docker_qemu_test.sh
 
 # ---- Debug with GDB ----
 debug: $(TARGET_ELF)
