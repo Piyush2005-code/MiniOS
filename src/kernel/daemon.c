@@ -21,6 +21,8 @@
 #include "kernel/daemon.h"
 #include "kernel/thread.h"
 #include "kernel/kmem.h"
+#include "kernel/cmd.h"
+#include "kernel/shell.h"
 #include "hal/uart.h"
 #include "hal/timer.h"
 
@@ -223,5 +225,20 @@ Status DAEMON_RegisterAll(void)
     }
 
     HAL_UART_PutString("[DAEM ] All daemons registered (clock, memwatch, rtmon)\n");
+
+    /* --- 4. Register built-in commands --- */
+    CMD_RegisterBuiltins();
+    HAL_UART_PutString("[DAEM ] Built-in commands registered\n");
+
+    /* --- 5. Interactive shell daemon --- */
+    s = SHELL_RegisterDaemon();
+    if (s != STATUS_OK) {
+        HAL_UART_PutString("[DAEM ] ERROR: shell daemon: ");
+        HAL_UART_PutDec((uint32_t)s);
+        HAL_UART_PutString("\n");
+        return s;
+    }
+
+    HAL_UART_PutString("[DAEM ] All subsystems ready\n");
     return STATUS_OK;
 }

@@ -56,6 +56,8 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/kmem.c \
            $(SRC_DIR)/kernel/thread.c \
            $(SRC_DIR)/kernel/daemon.c \
+           $(SRC_DIR)/kernel/cmd.c \
+           $(SRC_DIR)/kernel/shell.c \
            $(SRC_DIR)/kernel/main.c
 
 # ---- Object files ----
