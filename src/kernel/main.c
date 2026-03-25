@@ -21,6 +21,7 @@
 #include "hal/timer.h"
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
+#include "kernel/daemon.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols from vectors.S                                   */
@@ -317,6 +318,12 @@ void kernel_main(void)
     status = THREAD_Create(&t_mon, "monitor", monitor_thread,
                            NULL, THREAD_PRIORITY_LOW, 0);
     HAL_UART_PutString("[BOOT]   monitor  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8b: Register background daemons ---- */
+    status = DAEMON_RegisterAll();
+    HAL_UART_PutString("[BOOT] Daemons  : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
