@@ -281,6 +281,8 @@ static void cmd_echo(int argc, char *argv[]) {
       HAL_UART_PutString(argv[i]);
       HAL_UART_PutString(" ");
     }
+  } else {
+    HAL_UART_PutString("usage: echo <text to be echoed>\n");
   }
   HAL_UART_PutString("\n");
 }
