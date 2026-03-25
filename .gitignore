@@ -1,1 +1,4 @@
 build
+
+check_minios.sh 
+minios_code.txt
