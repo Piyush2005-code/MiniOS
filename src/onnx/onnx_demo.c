@@ -12,6 +12,7 @@
 #include "onnx/onnx_graph.h"
 #include "onnx/onnx_runtime.h"
 #include "hal/uart.h"
+#include "kernel/kmem.h"
 #include "status.h"
 
 /* ------------------------------------------------------------------ */
@@ -111,13 +112,17 @@ Status ONNX_Demo_SimpleLinear(void)
     ONNX_Node_AddInput(add_node, B);
     ONNX_Node_AddOutput(add_node, Y);
     
-    /* ---- Step 6: Allocate memory for tensors ---- */
-    /* Allocate a simple memory pool (in real implementation, use heap) */
+    /* ---- Step 6: Allocate memory for tensors via kernel arena ---- */
     #define TENSOR_POOL_SIZE (1024 * 64)  /* 64 KB */
-    static uint8_t tensor_memory_pool[TENSOR_POOL_SIZE];
-    
-    graph.tensor_memory_pool = tensor_memory_pool;
-    graph.tensor_memory_size = TENSOR_POOL_SIZE;
+    kmem_arena_t *tensor_arena = KMEM_ArenaCreate(TENSOR_POOL_SIZE);
+    if (!tensor_arena) {
+        HAL_UART_PutString("Failed to create tensor arena\n");
+        return STATUS_ERROR_OUT_OF_MEMORY;
+    }
+
+    graph.tensor_arena       = tensor_arena;
+    graph.tensor_memory_pool = NULL;   /* Arena is authoritative; pool not used */
+    graph.tensor_memory_size = KMEM_ArenaGetTotal(tensor_arena);
     graph.tensor_memory_used = 0;
     
     /* Allocate each tensor */

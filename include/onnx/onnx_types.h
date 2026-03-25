@@ -12,6 +12,9 @@
 #include "types.h"
 #include "status.h"
 
+/* Forward declaration — full definition is in kernel/kmem.h */
+typedef struct kmem_arena kmem_arena_t;
+
 /* ------------------------------------------------------------------ */
 /*  ONNX Data Types                                                   */
 /* ------------------------------------------------------------------ */
@@ -201,11 +204,12 @@ typedef struct {
     ONNX_Node* exec_schedule[ONNX_MAX_NODES];  /* Ordered list for execution */
     uint32_t schedule_length;
     
-    /* Memory pool for tensors */
-    void* tensor_memory_pool;
-    uint64_t tensor_memory_size;
-    uint64_t tensor_memory_used;
-    
+    /* Memory pool for tensors (arena-backed) */
+    kmem_arena_t* tensor_arena;         /* Kernel arena allocator (FR-017) */
+    void* tensor_memory_pool;           /* Base pointer (mirrors arena->base) */
+    uint64_t tensor_memory_size;        /* Total capacity */
+    uint64_t tensor_memory_used;        /* Currently used (mirrors arena usage) */
+
 } ONNX_Graph;
 
 /* ------------------------------------------------------------------ */

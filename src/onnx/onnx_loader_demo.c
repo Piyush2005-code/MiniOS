@@ -7,6 +7,7 @@
 #include "onnx/onnx_graph.h"
 #include "onnx/onnx_runtime.h"
 #include "hal/uart.h"
+#include "kernel/thread.h"
 #include "test_model.h"
 #include "status.h"
 
@@ -38,9 +39,11 @@ void ONNX_LoaderDemo(void)
     }
     
     HAL_UART_PutString("[Demo] Model loaded successfully!\n\n");
-    
+    THREAD_Yield();   /* Let monitor log after load phase */
+
     /* Print graph structure */
     ONNX_Graph_Print(&graph);
+    THREAD_Yield();   /* Let monitor log after print phase */
     
     HAL_UART_PutString("\n========================================\n\n");
 }

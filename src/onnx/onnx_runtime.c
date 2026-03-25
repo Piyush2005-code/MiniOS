@@ -7,6 +7,7 @@
 #include "onnx/onnx_graph.h"
 #include "onnx/onnx_types.h"
 #include "hal/uart.h"
+#include "kernel/kmem.h"
 #include "status.h"
 
 /* Simple memory operations */
@@ -44,11 +45,10 @@ Status ONNX_Runtime_Init(ONNX_InferenceContext* ctx,
     ctx->graph = graph;
     ctx->workspace_size = workspace_size;
     
-    /* Allocate workspace if needed */
+    /* Allocate workspace from kernel heap if needed */
     if (workspace_size > 0) {
-        /* In real implementation, use your memory allocator */
-        /* For now, just set to NULL - workspace will be allocated separately */
-        ctx->workspace = NULL;
+        ctx->workspace = KMEM_Alloc(workspace_size, KMEM_MIN_ALIGN);
+        /* workspace may be NULL on OOM — caller can check workspace_size */
     }
     
     ctx->total_inferences = 0;

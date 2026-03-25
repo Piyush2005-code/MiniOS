@@ -60,15 +60,19 @@ SECTIONS
 
     /* ---- Stack ---- */
     /* Stack grows downward from _stack_top.
-     * We place it 8MB from RAM origin to leave room
-     * for code and data below.
+     * Placed near the top of RAM to maximize heap space
+     * for ML tensor memory (SRS PR-004: up to 64MB).
+     * Kernel stack gets 256KB (0x40000) of space.
      */
-    _stack_top = ORIGIN(RAM) + 0x800000;   /* 0x40800000 */
+    _stack_top = ORIGIN(RAM) + LENGTH(RAM) - 0x10000;   /* 64KB from top of RAM */
 
-    /* ---- Heap region (for future memory allocator) ---- */
-    /* Starts after BSS, before stack */
+    /* ---- Heap region (for kernel memory allocator) ---- */
+    /* Starts after BSS, extends to 256KB below stack for guard space.
+     * This provides ~500MB of heap for thread stacks, arenas,
+     * pools, and tensor memory.
+     */
     _heap_start = ALIGN(_bss_end, 4096);
-    _heap_end   = _stack_top - 0x10000;    /* 64KB below stack top */
+    _heap_end   = _stack_top - 0x40000;    /* 256KB below stack top */
 
     /* Discard unneeded sections */
     /DISCARD/ : {

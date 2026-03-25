@@ -6,6 +6,7 @@
 #include "onnx/onnx_graph.h"
 #include "onnx/onnx_types.h"
 #include "hal/uart.h"
+#include "kernel/kmem.h"
 #include "status.h"
 
 /* Simple string utilities */
@@ -134,28 +135,28 @@ Status ONNX_Graph_AllocateTensor(ONNX_Graph* graph, ONNX_Tensor* tensor)
     if (!graph || !tensor) {
         return STATUS_ERROR_INVALID_ARGUMENT;
     }
-    
+
     /* Check if already allocated */
     if (tensor->data != NULL) {
         return STATUS_OK;
     }
-    
-    /* For now, use simple bump allocator from pool */
-    if (graph->tensor_memory_pool == NULL) {
-        /* Need to initialize memory pool first */
+
+    /* Require the arena to be set up */
+    if (graph->tensor_arena == NULL) {
         return STATUS_ERROR_NOT_INITIALIZED;
     }
-    
-    /* Align to 64 bytes for cache efficiency */
-    uint64_t aligned_offset = (graph->tensor_memory_used + 63) & ~63ULL;
-    
-    if (aligned_offset + tensor->data_size > graph->tensor_memory_size) {
+
+    /* Delegate to the arena allocator with cache-line alignment (FR-018) */
+    tensor->data = KMEM_ArenaAlloc(graph->tensor_arena,
+                                   tensor->data_size,
+                                   KMEM_TENSOR_ALIGN);
+    if (!tensor->data) {
         return STATUS_ERROR_OUT_OF_MEMORY;
     }
-    
-    tensor->data = (void*)((uint8_t*)graph->tensor_memory_pool + aligned_offset);
-    graph->tensor_memory_used = aligned_offset + tensor->data_size;
-    
+
+    /* Keep tensor_memory_used in sync for reporting */
+    graph->tensor_memory_used = KMEM_ArenaGetUsed(graph->tensor_arena);
+
     return STATUS_OK;
 }
 
