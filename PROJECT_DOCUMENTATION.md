@@ -20,9 +20,11 @@
 8. [Utility Libraries](#8-utility-libraries)
 9. [Type System & Status Codes](#9-type-system--status-codes)
 10. [Linker Script & Memory Map](#10-linker-script--memory-map)
-11. [Build System](#11-build-system)
-12. [Data Flow Diagrams](#12-data-flow-diagrams)
-13. [API Reference Summary](#13-api-reference-summary)
+11. [Background Daemons](#11-background-daemons)
+12. [Command Framework & Shell](#12-command-framework--shell)
+13. [Build System](#13-build-system)
+14. [Data Flow Diagrams](#14-data-flow-diagrams)
+15. [API Reference Summary](#15-api-reference-summary)
 
 ---
 
@@ -219,7 +221,10 @@ MiniOS/
 │   ├── kernel/
 │   │   ├── kapi.h             # Master include: KERNEL_Init() + KERNEL_Start()
 │   │   ├── kmem.h             # Memory management API (bump/arena/pool)
-│   │   └── thread.h           # Threading API, cpu_context_t, thread_t TCB
+│   │   ├── thread.h           # Threading API, cpu_context_t, thread_t TCB
+│   │   ├── daemon.h           # Background daemon definitions
+│   │   ├── cmd.h              # Command Registry API
+│   │   └── shell.h            # Interactive shell daemon API
 │   └── lib/
 │       └── string.h           # Freestanding string/memory utilities
 ├── src/
@@ -235,7 +240,10 @@ MiniOS/
 │   │   ├── main.c             # kernel_main(), IRQ dispatcher, demo threads
 │   │   ├── kmem.c             # Bump/arena/pool allocator implementation
 │   │   ├── thread.c           # TCB management, cooperative scheduler
-│   │   └── context.S          # cpu_context_switch + _thread_entry_trampoline
+│   │   ├── context.S          # cpu_context_switch + _thread_entry_trampoline
+│   │   ├── daemon.c           # Built-in background daemon configurations
+│   │   ├── cmd.c              # Command tokeniser and dispatch table
+│   │   └── shell.c            # UART interactive shell loop
 │   └── lib/
 │       └── string.c           # memset, memcpy, strlen
 ├── scripts/
@@ -806,7 +814,50 @@ Master include aggregating all subsystem headers. Defines:
 
 ---
 
-## 11. Build System
+## 11. Background Daemons
+
+The daemon subsystem manages long-lived, low-priority cooperative threads that run periodic housekeeping tasks. They are registered before `SCHED_Start()` and sleep between activations.
+
+### Built-in Daemons
+
+| Daemon | Priority | Period | Description |
+|--------|----------|--------|-------------|
+| `clock_daemon` | LOW | 1000 ms | Wall-clock second counter |
+| `memwatch_daemon` | LOW | 500 ms | Heap usage monitor / high-watermark warning (warns at 80% usage) |
+| `runtime_daemon` | LOW | 2000 ms | Uptime and thread-count reporter |
+| `shell_daemon` | LOW | N/A | Interactive UART command shell |
+
+### Daemon API Reference (`daemon.h`)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `DAEMON_RegisterAll` | `Status DAEMON_RegisterAll(void)` | Creates and registers all built-in background daemons at `THREAD_PRIORITY_LOW`. |
+| `DAEMON_GetWallSeconds` | `uint64_t DAEMON_GetWallSeconds(void)` | Returns wall-clock seconds elapsed since boot (updated by `clock_daemon`). |
+
+---
+
+## 12. Command Framework & Shell
+
+Provides a static command table that maps string commands to respective handlers, alongside an interactive UART-based shell daemon.
+
+### Command API (`cmd.h`)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `CMD_Register` | `Status CMD_Register(name, help, handler)` | Registers a command into the global table. |
+| `CMD_Dispatch` | `void CMD_Dispatch(char *line)` | Tokenises an input line on whitespace and dispatches it to the appropriate handler. |
+| `CMD_RegisterBuiltins` | `void CMD_RegisterBuiltins(void)` | Registers built-in commands (help, uptime, memstat, ps, clear, echo). |
+| `CMD_GetTable` | `const cmd_entry_t *CMD_GetTable(uint32_t *count)` | Returns a pointer to the command table. |
+
+### Shell Daemon (`shell.h`)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `SHELL_RegisterDaemon` | `Status SHELL_RegisterDaemon(void)` | Creates the shell daemon thread (name "shell", `THREAD_PRIORITY_LOW`), rendering an interactive UART prompt (`miniOS> `). |
+
+---
+
+## 13. Build System
 
 ### Toolchain
 
@@ -858,9 +909,9 @@ kmem.c → thread.c → main.c         (Kernel)
 
 ---
 
-## 12. Data Flow Diagrams
+## 14. Data Flow Diagrams
 
-### 12.1 ML Inference Thread Execution Model
+### 14.1 ML Inference Thread Execution Model
 
 ```mermaid
 graph TD
@@ -877,7 +928,7 @@ graph TD
     RUN3 --> DONE[Inference Complete\nTHREAD_Exit]
 ```
 
-### 12.2 Kernel Subsystem Dependencies
+### 14.2 Kernel Subsystem Dependencies
 
 ```mermaid
 graph BT
@@ -899,7 +950,7 @@ graph BT
 
 ---
 
-## 13. API Reference Summary
+## 15. API Reference Summary
 
 ### Complete Function Index
 
@@ -955,6 +1006,13 @@ graph BT
 | | `SCHED_TimerTick()` | void | Wake sleeping threads |
 | | `SCHED_GetUptime()` | uint64_t | Uptime in ms |
 | **context.S** | `cpu_context_switch(old, new)` | void | Save/restore 104 bytes |
+| **daemon.c** | `DAEMON_RegisterAll()` | Status | Register built-in daemons |
+| | `DAEMON_GetWallSeconds()` | uint64_t | Wall-clock seconds |
+| **cmd.c** | `CMD_Register(...)` | Status | Register new command |
+| | `CMD_Dispatch(line)` | void | Parse & execute line |
+| | `CMD_RegisterBuiltins()` | void | Add core commands |
+| | `CMD_GetTable(count*)` | const cmd_entry_t* | Get cmd table array |
+| **shell.c** | `SHELL_RegisterDaemon()` | Status | Create shell thread |
 
 ---
 
