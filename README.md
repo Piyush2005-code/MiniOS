@@ -1,89 +1,148 @@
-# MiniOS
+# MiniOS - ARM64 ML Inference Unikernel
 
-**A minimal ARM64 bare-metal unikernel designed for low-overhead machine learning inference on embedded platforms.**
+MiniOS is a specialized unikernel operating system designed to execute machine learning inference workloads on ARM64-based embedded platforms. By eliminating traditional operating system overhead such as filesystems, multi-user management, and POSIX compatibility, it treats ML computation graphs as the primary execution unit to achieve maximum performance and predictability.
 
-MiniOS eliminates traditional OS abstractions — no syscalls, no virtual filesystem, no dynamic linker — to deliver deterministic, low-latency neural network execution in a single address space. The system targets the QEMU `virt` machine (Cortex-A53, 512 MB RAM) and is cross-compiled with `aarch64-elf-gcc -std=c11 -ffreestanding -nostdlib`.
+## Project Overview
+
+MiniOS targets machine learning inference on ARM64 systems, specifically optimized for the QEMU virt machine (Cortex-A53). It operates in a single address space with no user/kernel boundary, utilizing a flat 512MB RAM segment.
+
+### Design Philosophy
+
+- Single Address Space: One flat 512MB RAM segment for efficiency.
+- Cooperative Execution: Threads yield voluntarily to minimize scheduling overhead.
+- Static Allocation: Memory is pre-allocated; no runtime malloc or free.
+- Graph-Centric: Optimized for hosting and executing ML operator pipelines.
+- Minimalism: Footprint under 256KB with no dependencies beyond the compiler runtime.
+
+### Target Hardware
+
+- Primary: QEMU virt machine (Cortex-A53 CPU, 512 MB RAM).
+- Physical Targets: Raspberry Pi 3/4, NVIDIA Jetson Nano, generic ARM64 boards.
+- Toolchain: aarch64-elf-gcc 10+ or Clang 12+.
 
 ---
 
-## Project Team
+## System Architecture
 
-| Member | Role |
-|---|---|
-| Piyush Singh Bhati | Tech Lead, Bootloader, HAL |
-| Darpan Baviskar | Integration Lead |
-| Harshit Saini | ML Runtime, Scheduler |
-| Aashma Yadav | System Components, UART |
+The system is composed of a Hardware Abstraction Layer (HAL), a Kernel Core, and Application Threads.
 
----
+```mermaid
+graph TB
+    subgraph "Physical Hardware / QEMU virt"
+        HW[ARM64 Cortex-A53 CPU]
+        MMIO[Memory-Mapped I/O\nUART · GIC · Timer]
+        RAM[512 MB DRAM\n0x40000000-0x5FFFFFFF]
+    end
 
-## Architecture Overview
+    subgraph "MiniOS Kernel Image"
+        BOOT[boot.S\n_start entry point]
+        subgraph HAL[Hardware Abstraction Layer]
+            UART[uart.c\nPL011 Serial Driver]
+            MMU[mmu.c\nMMU + Cache Setup]
+            GIC[gic.c\nGICv2 Interrupt Controller]
+            TMR[timer.c\nARM Generic Timer]
+            ARCH[arch.h\nInline ARM64 Primitives]
+        end
+        subgraph KERNEL[Kernel Core]
+            MAIN[main.c\nkernel_main()  IRQ Dispatch]
+            KMEM[kmem.c\nBump · Arena · Pool Allocators]
+            THREAD[thread.c\nCooperative Scheduler + TCBs]
+            CTX[context.S\nCPU Context Switch]
+        end
+        subgraph LIB[Freestanding Libraries]
+            STR[string.c\nmemset · memcpy · strlen]
+        end
+        subgraph APP[Application Threads]
+            INF[inference_thread\nSimulated ML Workload]
+            MON[monitor_thread\nMemory + Uptime Monitor]
+            IDLE[idle thread\nWFE low-power loop]
+        end
+    end
 
+    BOOT --> HAL
+    BOOT --> KERNEL
+    KERNEL --> APP
+    HAL --> MMIO
+    MMIO --> HW
+    RAM --> KERNEL
 ```
-+----------------------------------------------------------+
-|          MiniOS ML Inference Unikernel (ARM64)           |
-+----------------------------------------------------------+
-|  ONNX Graph Parser  |  Execution Engine  |  Telemetry   |
-+----------------------------------------------------------+
-|       Cooperative Scheduler / Task Runtime               |
-+----------------------------------------------------------+
-|  UART / RUDP  |  Memory Manager  |  HAL (Timer, GIC)    |
-+----------------------------------------------------------+
-|  Cortex-A53 | MMU (3-level) | NEON SIMD | PL011 UART    |
-+----------------------------------------------------------+
-```
 
 ---
 
-## Branch Structure
+## Key Subsystems
 
-The repository is organized into eleven branches, each representing a discrete system layer or development phase. They are intended to be integrated in the order listed below.
+### Kernel Memory Manager (KMEM)
 
-### 1. `main`
-The default branch. Contains the project-level README and serves as the integration target once all component branches reach a stable state.
+The KMEM module implements three allocation strategies over the heap:
+1. Bump Allocator: Permanent kernel allocations such as thread stacks.
+2. Arena Allocator: Resettable regions for per-inference-cycle tensor data.
+3. Pool Allocator: Fixed-size object recycling for operator descriptors.
 
-### 2. `baremetalOS`
-The initial bare-metal bring-up. Implements ARM64 exception level transitions (EL3 to EL1), 3-level MMU page tables with 4 KB granule, device/normal memory mapping, and a PL011 UART driver. Includes cross-platform Makefiles for macOS, Ubuntu, and Arch Linux. This branch establishes the hardware execution environment all subsequent branches build upon.
+### Threading and Cooperative Scheduler
 
-### 3. `BootLoader_and_HAL`
-Extends the bare-metal kernel with a structured Hardware Abstraction Layer (HAL). Provides timer (`hal/timer.h`), UART (`hal/uart.h`), and GIC interrupt controller drivers behind stable C interfaces. Separates hardware-specific code from higher-level kernel logic.
+MiniOS uses a cooperative multithreading model with a 4-level priority scheduler:
+- HIGH (0): Critical tasks.
+- NORMAL (1): Standard background tasks.
+- LOW (2): Housekeeping and daemons.
+- IDLE (3): Low-power wait loop.
 
-### 4. `UART_Implementation`
-Dedicated implementation of the serial communication protocol. Defines the framing, baud configuration, and character-level I/O routines used by both the kernel console and the RUDP network layer above it.
+### Background Daemons
 
-### 5. `build/kernel_api` — Sprint 1: Kernel API Layer
-First sprint of the unified Kernel API (`kapi.h`). Integrates the GIC interrupt controller and ARM Generic Timer into the memory manager, updates the linker script, and establishes the status code taxonomy used across all modules. Verified by automated assertions during build.
+The system includes built-in daemons for housekeeping:
+- clock_daemon: Tracks wall-clock seconds.
+- memwatch_daemon: Monitors heap usage and warns at 80% threshold.
+- runtime_daemon: Reports system uptime and thread counts.
+- shell_daemon: Provides the interactive UART command shell.
 
-### 6. `Kernel_API` — Sprint 2: Full Multithreaded API
-Completes the Kernel API surface across five modules: HAL Timer (10 functions), Memory Manager (12 functions), Core KAPI (9 functions), Scheduler (16 functions), and HAL UART (5 functions) — 38 APIs total. All 23 automated assertions pass. This branch represents the stable ABI that the scheduler benchmark and ONNX runtime depend on.
+### Command Framework and Shell
 
-### 7. `feat/onnx`
-Implements the ONNX ML inference runtime. Ships an ONNX graph parser, an operator execution engine (Conv2D, MatMul, ReLU, Softmax, Add), a three-tier static memory allocator (bump allocator, pool allocator, tensor lifetime graph planner), and MMU-enforced memory protection regions. The graph memory planner uses greedy interval-graph coloring to maximize tensor memory reuse without dynamic allocation.
-
-### 8. `net-protocol`
-Implements RUDP (Reliable UDP) as a bare-metal network protocol for transmitting ML control frames and ONNX model payloads over a virtual Ethernet interface. Control frames use ACK/NACK with up to five retransmits; telemetry frames are best-effort. Large ONNX models are fragmented with stop-and-wait per fragment. CRC-16/CCITT provides integrity verification. A Python host-side client (`rudp_client.py`) is included for testing.
-
-### 9. `unikernel`
-Benchmarks ML inference throughput and latency against a general-purpose Linux VM running inside QEMU/KVM using the Unikraft unikernel framework. Quantifies the overhead reduction achievable by eliminating OS abstractions for single-workload inference.
-
-### 10. `scheduler_benchmark`
-Profiles four scheduling policies — FIFO, Round Robin, Multilevel Queue (MLQ), and Lottery — against an ML inference workload composed of five representative operators (Conv2D, MatMul, Softmax, ReLU, Add). Benchmarks run on QEMU ARM64 using the ARM Generic Timer at 62.5 MHz. Results and analysis charts are generated programmatically via Python/matplotlib.
-
-### 11. `SRS-and-Reports`
-Documentation branch. Contains the Software Requirements Specification (SRS v1.0, v2.0) authored in LaTeX, assignment reports, and a full suite of UML diagrams (component, deployment, use-case, activity, class, sequence, and timing diagrams).
+The interactive shell provides a CLI for system management. Built-in commands include:
+- help: Display available commands.
+- uptime: Show system running time.
+- memstat: Display memory allocation statistics.
+- ps: List active threads and their states.
+- clear: Clear the terminal screen.
 
 ---
 
-## Build Requirements
+## Directory Structure
 
-- `aarch64-elf-gcc` (or `aarch64-linux-gnu-gcc`) for cross-compilation
-- `QEMU` with `qemu-system-aarch64` for emulation
-- `make` (branch-specific Makefiles: `Makefile.macos`, `Makefile.ubuntu`, `Makefile.arch`)
-
-Each branch contains its own `Makefile` and build instructions in its respective README or documentation file.
+- Makefile: Build system configuration.
+- linker.ld: Kernel image memory layout.
+- include/: Header files for HAL, Kernel, and Lib.
+- src/: Source code for Boot, HAL, Kernel core, and Utilities.
+- scripts/: Helper scripts for running and testing.
+- results/: Performance and benchmark logs.
 
 ---
 
-## Status
+## Build and Run
 
-Active development. All branches are in varying stages of completion. Refer to individual branch documentation for current build and test status.
+To compile the kernel and run it in QEMU:
+
+1. Compile all sources:
+   make
+
+2. Launch in QEMU:
+   make run
+
+3. Launch with GDB debug:
+   make debug
+
+To exit QEMU, use Ctrl+A followed by X.
+
+---
+
+## API Reference Summary
+
+The kernel provides a unified API for development:
+- HAL API: UART, MMU, GIC, and Timer management.
+- KMEM API: Memory allocation and statistics.
+- Threading API: Thread creation, yielding, and sleeping.
+- Daemon API: Registry and status for background tasks.
+- Command API: Custom command registration.
+
+For detailed function signatures, refer to the PROJECT_DOCUMENTATION.md file.
+
+---
+End of README - MiniOS Project
