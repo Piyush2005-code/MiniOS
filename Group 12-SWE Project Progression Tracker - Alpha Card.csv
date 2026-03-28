@@ -1,0 +1,59 @@
+Date,Alpha Concern,Alpha Card,Current Card ,Status,Notes to support status,Approved by
+4-Feb-2026,Customer,Opportunity,4 (Viable),Completed,"• Solution outlined: ML Inference Unikernel for ARM64 .
+
+• Risks acceptable & manageable: Dropped dynamic shapes and full ONNX compliance to manage complexity .
+
+• Pursuit viable: Benchmarks prove unikernels offer 10-50x smaller memory footprints and 40-100x faster boot times.",Baviskar Darpan Chandrashekhar
+18-Feb-2026,Customer,Stakeholders,3 (Involved),In Progress,"• Timely feedback provided: Dr. Romi Banerjee and TA Sumeet S Patil provided guidance on requirements and architecture .
+
+• Changes communicated: SRS updated to V2.0 based on feedback.",Aashma
+4-Feb-2026,Solution,Requirements,3 (Coherent),Completed,"• Requirements shared & priorities clear: SRS v2.0 establishes Critical to Low priorities for FRs, PRs, and PDRs .
+
+• Conflicts addressed: Excluded general-purpose OS features and dynamic shapes to ensure coherent edge-inference focus .
+
+• Team knows what to deliver: Traceability matrix established.",Harshit
+25-Feb-2026,Solution,Software System,2 (Demonstrable),In Progress,"• Architecture selected: 5-layer unikernel architecture chosen .
+
+• Critical interfaces demonstrated: UART protocol implemented, tested, and validated with a test harness .
+
+• System exercised: Benchmarking framework (Unikraft vs Linux) built and performance measured.",Piyush Singh Bhati
+11-Feb-2026,Endeavor,Team,3 (Collaborating),Completed,"• Works as one unit: 4-member team has clear, non-overlapping responsibilities (Architecture, Integration, ML Runtime, System Components) .
+
+• Communication open: GitHub repository and Trello Kanban boards utilized for continuous coordination.",Aashma
+25-Feb-2026,Endeavor,Work,3 (Started),In Progress,"• Development started: Coding active on baremetalOS and UART_Implementation branches .
+
+• Progress monitored: Trello used for sprint planning and task tracking .
+
+• Results achieved: UART tests passing and benchmarking trials concluded.",Piyush Singh Bhati
+18-Feb-2026,Endeavor,Way of Working,3 (In Use),Completed,"• Practices & tools in use: C11, ARM64 assembly, GCC 10+, QEMU 6.0+, CMake, and GitHub actively utilized by the whole team .
+
+• Foundation established: Standardized function naming patterns and error handling conventions applied to codebases.",Baviskar Darpan Chandrashekhar
+2-Mar-2026,Solution,System Integration,2 (Demonstrable),In Progress,"Goal: Integrate the feat/onnx ML runtime with the stable Kernel_API.
+
+Key Tasks: Link the ONNX parser/executor with the kernel's memory manager (KMEM_TensorAlloc) and cooperative scheduler (THREAD_Yield).
+
+Success Criteria: A single QEMU binary builds without errors, printing the ML runtime ready status.",Piyush Singh Bhati
+2-Mar-2026,Solution,End-to-End Inference,1 (Concept),Planned,"Goal: First successful end-to-end inference run in QEMU.
+
+Key Tasks: Implement UART binary protocol (FR-021/022) to receive a simple ONNX model (e.g., MNIST) and return results. Connect the UART driver to the integrated runtime.
+
+Success Criteria: Host PC sends model → MiniOS infers → returns the correct digit via UART. Measured latency matches the Kernel_API timer demonstration.",Harshit Saini
+2-Mar-2026,Solution,Operator Validation & Performance,1 (Concept),Planned,"Goal: Validate core NEON operators (Conv2D, MatMul) for correctness and measure performance against SRS PR-001.
+
+Key Tasks: Port NEON operator implementations from feat/onnx to use Kernel_API services. Run benchmarks with varying tensor sizes.
+
+Success Criteria: Operator outputs match reference implementations (e.g., Python ONNX Runtime). Inference throughput is within 20% of the projected bare-metal target.",Harshit Saini
+8-Mar-2026,Customer,Demonstrable MVP,2 (Demonstrable),Planned,"Goal: Prepare a demonstrable MVP for stakeholders (Dr. Romi Banerjee).
+
+Key Tasks: Create a simple host-side Python script that sends a model, receives results, and reports latency. Document the build and run process.
+
+Success Criteria: Stakeholders can clone the repo, run make qemu, and see a successful inference with printed results and timing.",Baviskar Darpan Chandrashekhar
+12-Mar-2026,Endeavor,Work,3 (Started),In Progress,"Progress: Development now focused on feat/onnx branch integration and UART protocol.
+
+Progress Monitored: Trello board updated with tasks for ONNX integration, UART protocol, and operator validation.
+
+Results Achieved: Kernel_API branch completed with all 23 assertions passing; stable ABI established for ML runtime.",Piyush Singh Bhati
+,,,,,,
+,,,,,,
+,,,,,,
+Link (Trello Cards) : ,https://trello.com/b/5Z1rnMOJ/swegroup12,,,,,

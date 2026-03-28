@@ -1,0 +1,20 @@
+Date,Diagram Category,Updates,Version_No.,Approved by
+20 Jan 2026,Component Diagram,Initial creation,v1.0,Aashma
+20 Jan 2026,Deployment Diagram,Initial creation,v1.0,Baviskar Darpan Chandrashekhar
+20 Jan 2026,Use Case Diagram,Initial creation,v1.0,Piyush Singh Bhati
+20 Jan 2026,Activity Diagram,Initial creation,v1.0,Harshit
+21 Jan 2026,Class Diagram,Initial creation,v1.0,Piyush Singh Bhati
+21 Jan 2026,Sequence Diagram,Initial creation,v1.0,Piyush Singh Bhati
+21 Jan 2026,Timing Diagram,Initial creation,v1.0,Harshit
+21 Jan 2026,Composite Diagram,Initial creation,v1.0,Baviskar Darpan Chandrashekhar
+3 Feb 2026,Component Diagram,"Refined component boundaries, separated memory manager and execution engine",v2.0,Aashma
+3 Feb 2026,Deployment Diagram,"Simplified to focus on UART, removed network details",v2.0,Baviskar Darpan Chandrashekhar
+3 Feb 2026,Use Case Diagram,Reduced actors to Remote ML Client and SysAdmin,v2.0,Piyush Singh Bhati
+3 Feb 2026,Activity Diagram,Added validation and error handling steps,v2.0,Harshit
+4 Feb 2026,Class Diagram,"Focused on core data structures, removed over‑specified classes",v2.0,Piyush Singh Bhati
+4 Feb 2026,Sequence Diagram,Added deferred interrupt handling and cooperative multitasking,v2.0,Piyush Singh Bhati
+4 Feb 2026,Timing Diagram,Added end‑to‑end latency measurement (t0‑t5),v2.0,Harshit
+,,,,
+Links :,UML Diagrams v1,https://github.com/Piyush2005-code/MiniOS/tree/SRS-and-Reports/images_v1,,
+,,,,
+,UML Diagrams v2,https://github.com/Piyush2005-code/MiniOS/tree/SRS-and-Reports/images_v2,,
