@@ -4,7 +4,7 @@
 # ============================================================================
 
 # ---- Toolchain ----
-CROSS    = aarch64-elf-
+CROSS    = aarch64-linux-gnu-
 CC       = $(CROSS)gcc
 AS       = $(CROSS)as
 LD       = $(CROSS)ld
@@ -60,7 +60,6 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
            $(SRC_DIR)/onnx/onnx_runtime.c \
            $(SRC_DIR)/onnx/onnx_loader.c \
-           $(SRC_DIR)/onnx/onnx_demo.c \
            $(SRC_DIR)/onnx/onnx_loader_demo.c
 
 # ---- Object files ----

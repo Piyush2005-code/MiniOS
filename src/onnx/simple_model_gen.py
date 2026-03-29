@@ -41,4 +41,4 @@ model.opset_import[0].version = 13
 # Save
 onnx.save(model, 'simple_add.onnx')
 print("Generated simple_add.onnx")
-print(f"Size: {len(onnx._serialize(model))} bytes")
+print()

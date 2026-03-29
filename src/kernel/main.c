@@ -14,8 +14,8 @@
 #include "hal/timer.h"
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
-#include "onnx/onnx_demo.h"
 #include "onnx/onnx_loader_demo.h"
+#include "kernel/thread.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols                                                   */
@@ -171,7 +171,7 @@ static void inference_thread(void *arg)
 }
 
 /* ------------------------------------------------------------------ */
-/*  Demo thread: ONNX runtime demos                                   */
+/*  Demo thread: ONNX loader demo                                     */
 /* ------------------------------------------------------------------ */
 static void onnx_thread(void *arg)
 {
@@ -179,16 +179,12 @@ static void onnx_thread(void *arg)
 
     HAL_UART_PutString("[ONNX ] ONNX demo thread started\n");
 
-    /* Run loader demo then yield so the monitor can log stats */
+    /* Run loader demo */
     ONNX_LoaderDemo();
-    THREAD_Yield();
-
-    /* Run graph-builder demos */
-    ONNX_RunDemos();
-    THREAD_Yield();
 
     HAL_UART_PutString("[ONNX ] ONNX demo thread complete\n");
 }
+
 
 /* ------------------------------------------------------------------ */
 /*  Demo thread: memory & thread monitor                              */

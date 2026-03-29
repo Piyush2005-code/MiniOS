@@ -9,6 +9,8 @@
 #include "onnx/onnx_graph.h"
 #include "onnx/onnx_types.h"
 #include "hal/uart.h"
+#include "kernel/kmem.h"
+#include "lib/string.h"
 #include "status.h"
 
 /* ------------------------------------------------------------------ */
@@ -153,8 +155,16 @@ static void proto_skip_field(ProtoReader* reader, ProtoWireType wire_type)
     }
 }
 
-/* Parse TensorProto and create ONNX_Tensor */
-static Status proto_parse_tensor(ProtoReader* reader, ONNX_Graph* graph, ONNX_Tensor** out_tensor)
+/* Parse TensorProto and create ONNX_Tensor
+ * Bug fixes applied:
+ *   Bug 1 – field 8 is TensorProto.name (not field 3 = segment)
+ *   Bug 2 – loop bounded by end_pos, not reader->size
+ *   Bug 3 – raw_data memcpy'd into arena immediately; never store a .rodata ptr
+ */
+static Status proto_parse_tensor(ProtoReader* reader,
+                                  uint64_t      end_pos,
+                                  ONNX_Graph*   graph,
+                                  ONNX_Tensor** out_tensor)
 {
     char name[ONNX_MAX_NAME_LEN] = {0};
     ONNX_DataType dtype = ONNX_DTYPE_FLOAT32;
@@ -162,51 +172,77 @@ static Status proto_parse_tensor(ProtoReader* reader, ONNX_Graph* graph, ONNX_Te
     uint32_t ndim = 0;
     const uint8_t* raw_data = NULL;
     uint64_t raw_data_len = 0;
-    
-    uint64_t start_pos = reader->pos;
-    (void)start_pos;  /* May be used for bounds checking */
-    
-    /* Find tensor size first (we're inside length-delimited message) */
-    /* The caller should have read the length */
-    
-    while (reader->pos < reader->size) {
+    /* float_data (field 4): Python onnx library stores floats here instead of raw_data */
+    const uint8_t* float_data = NULL;
+    uint64_t float_data_len = 0;
+
+    /* BUG 2 FIX: bound the loop to the message end, not the whole buffer */
+    while (reader->pos < end_pos && reader->pos < reader->size) {
         ProtoWireType wire_type;
         uint32_t field = proto_read_tag(reader, &wire_type);
-        
-        if (field == 0) break; /* End of message */
-        
-        if (field == 1) {  /* dims - repeated int64 */
-            if (ndim < ONNX_MAX_DIMS) {
-                dims[ndim++] = proto_read_varint(reader);
+
+        if (field == 0) break;
+
+        if (field == 1) {        /* dims – repeated int64 (VARINT or packed) */
+            if (wire_type == WIRE_LENGTH_DELIMITED) {
+                uint64_t len = proto_read_varint(reader);
+                uint64_t end_packed = reader->pos + len;
+                while (reader->pos < end_packed && reader->pos < reader->size) {
+                    uint64_t val = proto_read_varint(reader);
+                    if (ndim < ONNX_MAX_DIMS) {
+                        dims[ndim++] = val;
+                    }
+                }
+            } else if (wire_type == WIRE_VARINT) {
+                uint64_t val = proto_read_varint(reader);
+                if (ndim < ONNX_MAX_DIMS) {
+                    dims[ndim++] = val;
+                    HAL_UART_PutString("[PARSE] Tensor dim: ");
+                    HAL_UART_PutHex((uint32_t)val);
+                    HAL_UART_PutString("\n");
+                }
             } else {
-                proto_read_varint(reader);
+                proto_skip_field(reader, wire_type);
             }
         }
-        else if (field == 2) {  /* data_type - int32 */
+        else if (field == 2) {   /* data_type – int32 */
             dtype = (ONNX_DataType)proto_read_varint(reader);
+            HAL_UART_PutString("[PARSE] Tensor dt: ");
+            HAL_UART_PutHex((uint32_t)dtype);
+            HAL_UART_PutString("\n");
         }
-        else if (field == 3) {  /* name - string */
+        else if (field == 4) {   /* float_data – packed repeated float32 */
+            /* Python's onnx library emits initializers as float_data (field 4)
+             * rather than raw_data (field 9). The bytes are identical on little-
+             * endian hosts, so we just record the slice and copy it later. */
+            proto_read_bytes(reader, &float_data, &float_data_len);
+            HAL_UART_PutString("[PARSE] Found float_data len: ");
+            HAL_UART_PutHex((uint32_t)float_data_len);
+            HAL_UART_PutString("\n");
+        }
+        /* BUG 1 FIX: TensorProto.name is field 8, not field 3 */
+        else if (field == 8) {   /* name – string */
             proto_read_string(reader, name, sizeof(name));
+            HAL_UART_PutString("[PARSE] Tensor name: ");
+            HAL_UART_PutString(name);
+            HAL_UART_PutString("\n");
         }
-        else if (field == 9) {  /* raw_data - bytes */
+        else if (field == 9) {   /* raw_data – bytes */
             proto_read_bytes(reader, &raw_data, &raw_data_len);
-            /* After reading raw_data, we're likely at end of tensor */
-            break;
+            HAL_UART_PutString("[PARSE] Found raw_data len: ");
+            HAL_UART_PutHex((uint32_t)raw_data_len);
+            HAL_UART_PutString("\n");
+            break; /* raw_data is always last in a TensorProto */
         }
         else {
             proto_skip_field(reader, wire_type);
         }
-        
-        /* Safety: don't read beyond reasonable tensor message size */
-        if (reader->pos - start_pos > 100000) {
-            return STATUS_ERROR_INVALID_GRAPH;
-        }
     }
-    
-    /* Build shape structure */
+
+    /* Build shape */
     ONNX_TensorShape shape;
     shape.ndim = ndim;
-    uint64_t total = 1;
+    uint64_t total = (ndim > 0) ? 1 : 0;
     uint32_t i;
     for (i = 0; i < ndim; i++) {
         shape.dims[i] = dims[i];
@@ -216,21 +252,43 @@ static Status proto_parse_tensor(ProtoReader* reader, ONNX_Graph* graph, ONNX_Te
         shape.dims[i] = 0;
     }
     shape.total_elements = total;
-    
-    /* Create tensor in graph */
-    ONNX_Tensor* tensor = ONNX_Graph_CreateTensor(graph, name, dtype, &shape);
-    if (!tensor) {
-        return STATUS_ERROR_OUT_OF_MEMORY;
+
+    /* Get or create tensor slot in graph */
+    ONNX_Tensor* tensor = ONNX_Graph_FindTensor(graph, name);
+    if (tensor) {
+        /* Update existing placeholder */
+        tensor->dtype = dtype;
+        tensor->shape = shape;
+        tensor->data_size = shape.total_elements * ONNX_GetDataTypeSize(dtype);
+    } else {
+        tensor = ONNX_Graph_CreateTensor(graph, name, dtype, &shape);
+        if (!tensor) {
+            return STATUS_ERROR_OUT_OF_MEMORY;
+        }
     }
-    
     tensor->is_initializer = 1;
-    
-    /* Note: raw_data will be copied to tensor->data during allocation phase */
-    /* For now, store pointer (will copy later) */
-    if (raw_data && raw_data_len > 0) {
-        tensor->data = (void*)raw_data;  /* Temporary - will be copied */
+
+    /* BUG 3 FIX: allocate arena memory and memcpy immediately.
+     * Never leave tensor->data pointing into the read-only protobuf buffer;
+     * MMU write-protects .rodata before inference runs.
+     * Also handle float_data (field 4) the same way – Python's onnx library
+     * uses field 4 instead of field 9 for most float initializers. */
+    {
+        const uint8_t* src = raw_data ? raw_data : float_data;
+        uint64_t  src_len = raw_data ? raw_data_len : float_data_len;
+        if (src && src_len > 0 && graph->tensor_arena) {
+            tensor->data = KMEM_ArenaAlloc(graph->tensor_arena,
+                                           src_len,
+                                           KMEM_TENSOR_ALIGN);
+            if (!tensor->data) {
+                return STATUS_ERROR_OUT_OF_MEMORY;
+            }
+            memcpy(tensor->data, src, (size_t)src_len);
+            tensor->data_size = src_len;
+            graph->tensor_memory_used = KMEM_ArenaGetUsed(graph->tensor_arena);
+        }
     }
-    
+
     *out_tensor = tensor;
     return STATUS_OK;
 }
@@ -383,27 +441,65 @@ static Status proto_parse_graph(ProtoReader* reader, uint64_t graph_msg_len, ONN
         else if (field == 5) {  /* initializer - repeated TensorProto */
             uint64_t tensor_len = proto_read_varint(reader);
             uint64_t tensor_end = reader->pos + tensor_len;
-            
+
             ONNX_Tensor* tensor = NULL;
-            Status s = proto_parse_tensor(reader, graph, &tensor);
+            /* BUG 2 + 3 FIX: pass tensor_end so the sub-parser knows its boundary */
+            Status s = proto_parse_tensor(reader, tensor_end, graph, &tensor);
             if (s != STATUS_OK) {
                 HAL_UART_PutString("[ONNX] Error parsing initializer\n");
-                /* Skip this tensor */
-                reader->pos = tensor_end;
-            } else {
-                /* Ensure we're at the right position */
-                reader->pos = tensor_end;
             }
+            /* Always advance to end of this tensor message (correct boundary) */
+            reader->pos = tensor_end;
         }
         else if (field == 11) {  /* input - repeated ValueInfoProto */
             uint64_t len = proto_read_varint(reader);
-            /* TODO: Parse input info */
-            reader->pos += len;
+            uint64_t vinfo_end = reader->pos + len;
+            char name[ONNX_MAX_NAME_LEN] = {0};
+            while (reader->pos < vinfo_end && reader->pos < reader->size) {
+                ProtoWireType wtype;
+                uint32_t vfield = proto_read_tag(reader, &wtype);
+                if (vfield == 1) { /* name */
+                    proto_read_string(reader, name, sizeof(name));
+                } else {
+                    proto_skip_field(reader, wtype);
+                }
+            }
+            if (name[0] != '\0' && graph->num_inputs < ONNX_MAX_INPUTS) {
+                ONNX_Tensor* t = ONNX_Graph_FindTensor(graph, name);
+                if (!t) {
+                     ONNX_TensorShape shape = {0};
+                     t = ONNX_Graph_CreateTensor(graph, name, ONNX_DTYPE_FLOAT32, &shape);
+                }
+                if (t) {
+                    graph->inputs[graph->num_inputs++] = t;
+                }
+            }
+            reader->pos = vinfo_end;
         }
         else if (field == 12) {  /* output - repeated ValueInfoProto */
             uint64_t len = proto_read_varint(reader);
-            /* TODO: Parse output info */
-            reader->pos += len;
+            uint64_t vinfo_end = reader->pos + len;
+            char name[ONNX_MAX_NAME_LEN] = {0};
+            while (reader->pos < vinfo_end && reader->pos < reader->size) {
+                ProtoWireType wtype;
+                uint32_t vfield = proto_read_tag(reader, &wtype);
+                if (vfield == 1) { /* name */
+                    proto_read_string(reader, name, sizeof(name));
+                } else {
+                    proto_skip_field(reader, wtype);
+                }
+            }
+            if (name[0] != '\0' && graph->num_outputs < ONNX_MAX_OUTPUTS) {
+                ONNX_Tensor* t = ONNX_Graph_FindTensor(graph, name);
+                if (!t) {
+                     ONNX_TensorShape shape = {0};
+                     t = ONNX_Graph_CreateTensor(graph, name, ONNX_DTYPE_FLOAT32, &shape);
+                }
+                if (t) {
+                    graph->outputs[graph->num_outputs++] = t;
+                }
+            }
+            reader->pos = vinfo_end;
         }
         else {
             proto_skip_field(reader, wire_type);
@@ -490,6 +586,15 @@ Status ONNX_LoadProtobuf(ONNX_Graph* graph,
         }
     }
     
+    /* Clean up inputs list (remove initializers) */
+    uint32_t actual_inputs = 0;
+    for (uint32_t i = 0; i < graph->num_inputs; i++) {
+        if (!graph->inputs[i]->is_initializer) {
+            graph->inputs[actual_inputs++] = graph->inputs[i];
+        }
+    }
+    graph->num_inputs = actual_inputs;
+
     /* Build dependencies and schedule */
     HAL_UART_PutString("[ONNX] Building dependencies...\n");
     status = ONNX_Graph_BuildDependencies(graph);

@@ -29,7 +29,7 @@ Status ONNX_Demo_SimpleLinear(void)
     HAL_UART_PutString("\n");
     
     /* ---- Step 1: Create and initialize graph ---- */
-    ONNX_Graph graph;
+    static ONNX_Graph graph;
     Status status = ONNX_Graph_Init(&graph, "SimpleLinearModel");
     if (status != STATUS_OK) {
         HAL_UART_PutString("Failed to initialize graph\n");
