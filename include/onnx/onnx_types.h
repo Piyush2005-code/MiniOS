@@ -67,7 +67,14 @@ typedef enum {
     /* Other */
     ONNX_OP_GEMM,
     ONNX_OP_CONCAT,
-    
+
+    /* Extra Ops */
+    ONNX_OP_LEAKYRELU,
+    ONNX_OP_GLOBALAVERAGEPOOL,
+    ONNX_OP_SQUEEZE,
+    ONNX_OP_UNSQUEEZE,
+    ONNX_OP_CAST,
+
     ONNX_OP_MAX_VALUE
 } ONNX_OperatorType;
 

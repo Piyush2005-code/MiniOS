@@ -29,6 +29,11 @@ const char* ONNX_GetOperatorName(ONNX_OperatorType op_type)
         case ONNX_OP_BATCHNORM:  return "BatchNormalization";
         case ONNX_OP_GEMM:       return "Gemm";
         case ONNX_OP_CONCAT:     return "Concat";
+        case ONNX_OP_LEAKYRELU:  return "LeakyRelu";
+        case ONNX_OP_GLOBALAVERAGEPOOL: return "GlobalAveragePool";
+        case ONNX_OP_SQUEEZE:    return "Squeeze";
+        case ONNX_OP_UNSQUEEZE:  return "Unsqueeze";
+        case ONNX_OP_CAST:       return "Cast";
         default:                 return "Unknown";
     }
 }
