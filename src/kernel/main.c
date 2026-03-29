@@ -22,6 +22,8 @@
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
 #include "kernel/daemon.h"
+#include "fs/minifs.h"      
+#include "net/net_model.h"  
 
 /* ------------------------------------------------------------------ */
 /*  External symbols from vectors.S                                   */
@@ -279,6 +281,14 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT] Heap free: ");
     HAL_UART_PutDec((uint32_t)(KMEM_GetFreeSpace() / 1024));
     HAL_UART_PutString(" KB\n");
+    /* ---- Step 4b: Initialize MiniFS ---- */
+    MFS_Init();
+    MFS_MkDir("tmp");
+    MFS_MkDir("exec");
+    HAL_UART_PutString("[BOOT] MiniFS: /tmp /exec ready\n");
+
+    /* ---- Step 4c: Initialize Network transport ---- */
+    NET_Init();
 
     /* ---- Step 5: Initialize GIC (interrupt controller) ---- */
     HAL_UART_PutString("[BOOT] Initializing GIC...\n");

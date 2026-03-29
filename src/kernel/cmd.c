@@ -23,7 +23,8 @@
 #include "kernel/daemon.h"
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
-
+#include "fs/minifs.h"          
+#include "net/net_model.h"      
 /* ------------------------------------------------------------------ */
 /*  Command table                                                     */
 /* ------------------------------------------------------------------ */
@@ -287,14 +288,57 @@ static void cmd_echo(int argc, char *argv[]) {
   HAL_UART_PutString("\n");
 }
 
+/* ---- ls ----------------------------------------------------------- */
+/**
+ * Usage: ls           → lists / (root)
+ * Usage: ls exec      → lists /exec
+ * Usage: ls tmp       → lists /tmp
+ */
+static void cmd_ls(int argc, char *argv[]) {
+    if (argc < 2) {
+        /* No argument: show root */
+        MFS_ListRoot();
+    } else {
+        /* Argument: show that directory */
+        MFS_ListDir(argv[1]);
+    }
+}
+
+/* ---- recv --------------------------------------------------------- */
+/**
+ * Usage: recv
+ * Blocks until a model file is received over UART from the host.
+ * Stores it in /exec/model.bin
+ */
+static void cmd_recv(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
+    NET_ReceiveModel();
+}
+
+/* ---- run ---------------------------------------------------------- */
+/**
+ * Usage: run exec/model.bin
+ * Loads the file from MiniFS and runs ONNX inference on it.
+ */
+static void cmd_run(int argc, char *argv[]) {
+    if (argc < 2) {
+        HAL_UART_PutString("Usage: run <path>  (e.g. run exec/model.bin)\n");
+        return;
+    }
+    NET_RunModel(argv[1]);
+}
 /* ------------------------------------------------------------------ */
 /*  Register built-ins                                                */
 /* ------------------------------------------------------------------ */
 void CMD_RegisterBuiltins(void) {
-  CMD_Register("help", "List all available commands", cmd_help);
-  CMD_Register("uptime", "Show time since boot", cmd_uptime);
-  CMD_Register("memstat", "Show kernel heap usage", cmd_memstat);
-  CMD_Register("ps", "Show active thread count", cmd_ps);
-  CMD_Register("clear", "Clear the terminal screen", cmd_clear);
-  CMD_Register("echo", "Echo arguments to terminal", cmd_echo);
+  CMD_Register("help",    "List all available commands",    cmd_help);
+  CMD_Register("uptime",  "Show time since boot",           cmd_uptime);
+  CMD_Register("memstat", "Show kernel heap usage",         cmd_memstat);
+  CMD_Register("ps",      "Show active thread count",       cmd_ps);
+  CMD_Register("clear",   "Clear the terminal screen",      cmd_clear);
+  CMD_Register("echo",    "Echo arguments to terminal",     cmd_echo);
+  CMD_Register("ls",      "ls [dir]  List filesystem",      cmd_ls);
+  CMD_Register("recv",    "recv  Receive model over UART",  cmd_recv);
+  CMD_Register("run",     "run <path>  Run ONNX model",     cmd_run);
 }

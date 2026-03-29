@@ -47,6 +47,7 @@ ASM_SRCS = $(SRC_DIR)/boot/boot.S \
            $(SRC_DIR)/boot/vectors.S \
            $(SRC_DIR)/kernel/context.S
 
+
 # C sources
 C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
@@ -58,7 +59,9 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/daemon.c \
            $(SRC_DIR)/kernel/cmd.c \
            $(SRC_DIR)/kernel/shell.c \
-           $(SRC_DIR)/kernel/main.c
+           $(SRC_DIR)/kernel/main.c \
+           $(SRC_DIR)/fs/minifs.c \
+           $(SRC_DIR)/net/net_model.c
 
 # ---- Object files ----
 ASM_OBJS = $(patsubst $(SRC_DIR)/%.S, $(OBJ_DIR)/%.o, $(ASM_SRCS))
