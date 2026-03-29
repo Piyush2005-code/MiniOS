@@ -2,9 +2,10 @@ ARCHITECTURE_DIAGRAMS.md
 build
 
 *.csv
-
+.gitignore
 ProjectDocumentation.md
 PROJECT_DOCUMENTATION.md
 PROGRESS_REPORT.md
 BRANCH_PROGRESS_REPORT.md
 daemon_design.md
+
