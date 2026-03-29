@@ -22,6 +22,8 @@
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
 #include "kernel/daemon.h"
+#include "kernel/ulfs.h"
+#include "kernel/fs_cmds.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols from vectors.S                                   */
@@ -324,6 +326,19 @@ void kernel_main(void)
     /* ---- Step 8b: Register background daemons ---- */
     status = DAEMON_RegisterAll();
     HAL_UART_PutString("[BOOT] Daemons  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8c: Initialize ULFS file system ---- */
+    HAL_UART_PutString("[BOOT] Initializing ULFS file system...\n");
+    status = ULFS_Init();
+    HAL_UART_PutString("[BOOT] ULFS status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8d: Register file system shell commands ---- */
+    status = FS_RegisterCommands();
+    HAL_UART_PutString("[BOOT] FS cmds  : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
