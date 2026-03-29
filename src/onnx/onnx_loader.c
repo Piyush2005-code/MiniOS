@@ -347,24 +347,58 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
     
     /* Map op_type string to enum */
     ONNX_OperatorType op_enum = ONNX_OP_ADD;  /* Default */
-    
+
+    /* A proper implementation would use strcmp or hash table */
     if (op_type[0] != '\0') {
-        /* Simple string comparison (no strcmp in freestanding) */
         if (op_type[0] == 'A' && op_type[1] == 'd' && op_type[2] == 'd' && op_type[3] == '\0') {
             op_enum = ONNX_OP_ADD;
-        }
-        else if (op_type[0] == 'M' && op_type[1] == 'a' && op_type[2] == 't' && 
+        } else if (op_type[0] == 'S' && op_type[1] == 'u' && op_type[2] == 'b' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_SUB;
+        } else if (op_type[0] == 'M' && op_type[1] == 'u' && op_type[2] == 'l' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_MUL;
+        } else if (op_type[0] == 'D' && op_type[1] == 'i' && op_type[2] == 'v' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_DIV;
+        } else if (op_type[0] == 'M' && op_type[1] == 'a' && op_type[2] == 't' &&
                  op_type[3] == 'M' && op_type[4] == 'u' && op_type[5] == 'l' && op_type[6] == '\0') {
             op_enum = ONNX_OP_MATMUL;
-        }
-        else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 'l' && 
+        } else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 'l' &&
                  op_type[3] == 'u' && op_type[4] == '\0') {
             op_enum = ONNX_OP_RELU;
-        }
-        else if (op_type[0] == 'C' && op_type[1] == 'o' && op_type[2] == 'n' && op_type[3] == 'v') {
+        } else if (op_type[0] == 'S' && op_type[1] == 'i' && op_type[2] == 'g' && op_type[3] == 'm') {
+            op_enum = ONNX_OP_SIGMOID;
+        } else if (op_type[0] == 'T' && op_type[1] == 'a' && op_type[2] == 'n' && op_type[3] == 'h') {
+            op_enum = ONNX_OP_TANH;
+        } else if (op_type[0] == 'S' && op_type[1] == 'o' && op_type[2] == 'f' && op_type[3] == 't') {
+            op_enum = ONNX_OP_SOFTMAX;
+        } else if (op_type[0] == 'C' && op_type[1] == 'o' && op_type[2] == 'n' && op_type[3] == 'v') {
             op_enum = ONNX_OP_CONV;
+        } else if (op_type[0] == 'M' && op_type[1] == 'a' && op_type[2] == 'x' && op_type[3] == 'P') {
+            op_enum = ONNX_OP_MAXPOOL;
+        } else if (op_type[0] == 'A' && op_type[1] == 'v' && op_type[2] == 'e' && op_type[3] == 'r') {
+            op_enum = ONNX_OP_AVGPOOL;
+        } else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 's' && op_type[3] == 'h') {
+            op_enum = ONNX_OP_RESHAPE;
+        } else if (op_type[0] == 'T' && op_type[1] == 'r' && op_type[2] == 'a' && op_type[3] == 'n') {
+            op_enum = ONNX_OP_TRANSPOSE;
+        } else if (op_type[0] == 'F' && op_type[1] == 'l' && op_type[2] == 'a' && op_type[3] == 't') {
+            op_enum = ONNX_OP_FLATTEN;
+        } else if (op_type[0] == 'B' && op_type[1] == 'a' && op_type[2] == 't' && op_type[3] == 'c') {
+            op_enum = ONNX_OP_BATCHNORM;
+        } else if (op_type[0] == 'G' && op_type[1] == 'e' && op_type[2] == 'm' && op_type[3] == 'm') {
+            op_enum = ONNX_OP_GEMM;
+        } else if (op_type[0] == 'C' && op_type[1] == 'o' && op_type[2] == 'n' && op_type[3] == 'c') {
+            op_enum = ONNX_OP_CONCAT;
+        } else if (op_type[0] == 'L' && op_type[1] == 'e' && op_type[2] == 'a' && op_type[3] == 'k') {
+            op_enum = ONNX_OP_LEAKYRELU;
+        } else if (op_type[0] == 'G' && op_type[1] == 'l' && op_type[2] == 'o' && op_type[3] == 'b') {
+            op_enum = ONNX_OP_GLOBALAVERAGEPOOL;
+        } else if (op_type[0] == 'S' && op_type[1] == 'q' && op_type[2] == 'u' && op_type[3] == 'e') {
+            op_enum = ONNX_OP_SQUEEZE;
+        } else if (op_type[0] == 'U' && op_type[1] == 'n' && op_type[2] == 's' && op_type[3] == 'q') {
+            op_enum = ONNX_OP_UNSQUEEZE;
+        } else if (op_type[0] == 'C' && op_type[1] == 'a' && op_type[2] == 's' && op_type[3] == 't') {
+            op_enum = ONNX_OP_CAST;
         }
-        /* Add more operators as needed */
     }
     
     /* Create node */
