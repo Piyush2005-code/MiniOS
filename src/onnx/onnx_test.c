@@ -68,16 +68,19 @@ static void setup_test_graph() {
 static void ut_add_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, NULL);
-    y->shape.ndim = 1; y->shape.dims[0] = 3; y->shape.total_elements = 3;
+    ONNX_TensorShape shape_y = {0};
+    shape_y.ndim = 1; shape_y.dims[0] = 3; shape_y.total_elements = 3;
+    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, &shape_y);
     ONNX_Graph_AllocateTensor(&test_graph, y);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     ((float*)x->data)[0] = 2.0f; ((float*)x->data)[1] = 3.0f; ((float*)x->data)[2] = 4.0f;
@@ -98,16 +101,19 @@ static void ut_add_001() {
 static void ut_sub_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, NULL);
-    y->shape.ndim = 1; y->shape.dims[0] = 3; y->shape.total_elements = 3;
+    ONNX_TensorShape shape_y = {0};
+    shape_y.ndim = 1; shape_y.dims[0] = 3; shape_y.total_elements = 3;
+    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, &shape_y);
     ONNX_Graph_AllocateTensor(&test_graph, y);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     ((float*)x->data)[0] = 5.0f; ((float*)x->data)[1] = 3.0f; ((float*)x->data)[2] = 8.0f;
@@ -128,16 +134,19 @@ static void ut_sub_001() {
 static void ut_mul_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, NULL);
-    y->shape.ndim = 1; y->shape.dims[0] = 3; y->shape.total_elements = 3;
+    ONNX_TensorShape shape_y = {0};
+    shape_y.ndim = 1; shape_y.dims[0] = 3; shape_y.total_elements = 3;
+    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, &shape_y);
     ONNX_Graph_AllocateTensor(&test_graph, y);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     ((float*)x->data)[0] = 2.0f; ((float*)x->data)[1] = 3.0f; ((float*)x->data)[2] = 4.0f;
@@ -158,16 +167,19 @@ static void ut_mul_001() {
 static void ut_div_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, NULL);
-    y->shape.ndim = 1; y->shape.dims[0] = 3; y->shape.total_elements = 3;
+    ONNX_TensorShape shape_y = {0};
+    shape_y.ndim = 1; shape_y.dims[0] = 3; shape_y.total_elements = 3;
+    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, &shape_y);
     ONNX_Graph_AllocateTensor(&test_graph, y);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     ((float*)x->data)[0] = 6.0f; ((float*)x->data)[1] = 9.0f; ((float*)x->data)[2] = 4.0f;
@@ -188,16 +200,19 @@ static void ut_div_001() {
 static void ut_matmul_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 2; x->shape.dims[0] = 2; x->shape.dims[1] = 3; x->shape.total_elements = 6;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 2; shape_x.dims[0] = 2; shape_x.dims[1] = 3; shape_x.total_elements = 6;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, NULL);
-    y->shape.ndim = 2; y->shape.dims[0] = 3; y->shape.dims[1] = 2; y->shape.total_elements = 6;
+    ONNX_TensorShape shape_y = {0};
+    shape_y.ndim = 2; shape_y.dims[0] = 3; shape_y.dims[1] = 2; shape_y.total_elements = 6;
+    ONNX_Tensor* y = ONNX_Graph_CreateTensor(&test_graph, "Y", ONNX_DTYPE_FLOAT32, &shape_y);
     ONNX_Graph_AllocateTensor(&test_graph, y);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 2; z->shape.dims[0] = 2; z->shape.dims[1] = 2; z->shape.total_elements = 4;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 2; shape_z.dims[0] = 2; shape_z.dims[1] = 2; shape_z.total_elements = 4;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -228,12 +243,14 @@ static void ut_matmul_001() {
 static void ut_relu_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 5; x->shape.total_elements = 5;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 5; shape_x.total_elements = 5;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 5; z->shape.total_elements = 5;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 5; shape_z.total_elements = 5;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -254,12 +271,14 @@ static void ut_relu_001() {
 static void ut_sigmoid_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 1; x->shape.total_elements = 1;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 1; shape_x.total_elements = 1;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 1; z->shape.total_elements = 1;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 1; shape_z.total_elements = 1;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     ((float*)x->data)[0] = 0.0f;
@@ -277,12 +296,14 @@ static void ut_sigmoid_001() {
 static void ut_tanh_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 1; x->shape.total_elements = 1;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 1; shape_x.total_elements = 1;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 1; z->shape.total_elements = 1;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 1; shape_z.total_elements = 1;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     ((float*)x->data)[0] = 0.0f;
@@ -300,12 +321,14 @@ static void ut_tanh_001() {
 static void ut_softmax_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -332,12 +355,14 @@ static void ut_softmax_001() {
 static void ut_leakyrelu_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -361,12 +386,14 @@ static void ut_leakyrelu_001() {
 static void ut_abs_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -386,12 +413,14 @@ static void ut_abs_001() {
 static void ut_neg_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -411,20 +440,24 @@ static void ut_neg_001() {
 static void ut_clip_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 4; x->shape.total_elements = 4;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 4; shape_x.total_elements = 4;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* min_t = ONNX_Graph_CreateTensor(&test_graph, "min", ONNX_DTYPE_FLOAT32, NULL);
-    min_t->shape.ndim = 0; min_t->shape.total_elements = 1;
+    ONNX_TensorShape shape_min_t = {0};
+    shape_min_t.ndim = 1; shape_min_t.dims[0] = 1; shape_min_t.total_elements = 1;
+    ONNX_Tensor* min_t = ONNX_Graph_CreateTensor(&test_graph, "min", ONNX_DTYPE_FLOAT32, &shape_min_t);
     ONNX_Graph_AllocateTensor(&test_graph, min_t);
 
-    ONNX_Tensor* max_t = ONNX_Graph_CreateTensor(&test_graph, "max", ONNX_DTYPE_FLOAT32, NULL);
-    max_t->shape.ndim = 0; max_t->shape.total_elements = 1;
+    ONNX_TensorShape shape_max_t = {0};
+    shape_max_t.ndim = 1; shape_max_t.dims[0] = 1; shape_max_t.total_elements = 1;
+    ONNX_Tensor* max_t = ONNX_Graph_CreateTensor(&test_graph, "max", ONNX_DTYPE_FLOAT32, &shape_max_t);
     ONNX_Graph_AllocateTensor(&test_graph, max_t);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 4; z->shape.total_elements = 4;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 4; shape_z.total_elements = 4;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
@@ -437,6 +470,7 @@ static void ut_clip_001() {
     ONNX_Node_AddInput(node, x);
     ONNX_Node_AddInput(node, min_t);
     ONNX_Node_AddInput(node, max_t);
+    
     ONNX_Node_AddOutput(node, z);
 
     ONNX_Runtime_ExecuteNode(&test_ctx, node);
@@ -450,12 +484,14 @@ static void ut_clip_001() {
 static void ut_identity_001() {
     setup_test_graph();
 
-    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, NULL);
-    x->shape.ndim = 1; x->shape.dims[0] = 3; x->shape.total_elements = 3;
+    ONNX_TensorShape shape_x = {0};
+    shape_x.ndim = 1; shape_x.dims[0] = 3; shape_x.total_elements = 3;
+    ONNX_Tensor* x = ONNX_Graph_CreateTensor(&test_graph, "X", ONNX_DTYPE_FLOAT32, &shape_x);
     ONNX_Graph_AllocateTensor(&test_graph, x);
 
-    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, NULL);
-    z->shape.ndim = 1; z->shape.dims[0] = 3; z->shape.total_elements = 3;
+    ONNX_TensorShape shape_z = {0};
+    shape_z.ndim = 1; shape_z.dims[0] = 3; shape_z.total_elements = 3;
+    ONNX_Tensor* z = ONNX_Graph_CreateTensor(&test_graph, "Z", ONNX_DTYPE_FLOAT32, &shape_z);
     ONNX_Graph_AllocateTensor(&test_graph, z);
 
     float* x_data = (float*)x->data;
