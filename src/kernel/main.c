@@ -15,7 +15,7 @@
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
 #include "onnx/onnx_loader_demo.h"
-#include "kernel/thread.h"
+#include "onnx/onnx_test.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols                                                   */
@@ -187,6 +187,15 @@ static void onnx_thread(void *arg)
 
 
 /* ------------------------------------------------------------------ */
+/*  Test thread: ONNX Unit/Integration/Component tests                */
+/* ------------------------------------------------------------------ */
+static void test_thread(void *arg)
+{
+    (void)arg;
+    ONNX_RunAllTests();
+}
+
+/* ------------------------------------------------------------------ */
 /*  Demo thread: memory & thread monitor                              */
 /* ------------------------------------------------------------------ */
 static void monitor_thread(void *arg)
@@ -312,6 +321,13 @@ void kernel_main(void)
     status = THREAD_Create(&t_mon, "monitor", monitor_thread,
                            NULL, THREAD_PRIORITY_LOW, 0);
     HAL_UART_PutString("[BOOT]   monitor  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    thread_t *t_test = NULL;
+    status = THREAD_Create(&t_test, "test", test_thread,
+                           NULL, THREAD_PRIORITY_NORMAL, 0);
+    HAL_UART_PutString("[BOOT]   test     : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
