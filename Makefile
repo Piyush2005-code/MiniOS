@@ -60,6 +60,7 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
            $(SRC_DIR)/onnx/onnx_runtime.c \
            $(SRC_DIR)/onnx/onnx_loader.c \
+           $(SRC_DIR)/onnx/onnx_test.c \
            $(SRC_DIR)/onnx/onnx_loader_demo.c
 
 # ---- Object files ----
