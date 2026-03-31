@@ -195,6 +195,8 @@ static void cmd_mkdir(int argc, char *argv[])
     } else {
         HAL_UART_PutString("mkdir: failed (disk full or invalid path)\n");
     }
+    
+    ULFS_Sync();
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,6 +229,8 @@ static void cmd_touch(int argc, char *argv[])
     } else {
         HAL_UART_PutString("touch: failed to create file\n");
     }
+    
+    ULFS_Sync();
 }
 
 /* ------------------------------------------------------------------ */
@@ -340,6 +344,8 @@ static void cmd_write(int argc, char *argv[])
     HAL_UART_PutString("write: '");
     HAL_UART_PutString(argv[1]);
     HAL_UART_PutString("' written\n");
+    
+    ULFS_Sync();
 }
 
 /* ------------------------------------------------------------------ */
@@ -378,6 +384,116 @@ static void cmd_rm(int argc, char *argv[])
         HAL_UART_PutString(argv[1]);
         HAL_UART_PutString("': no such file or directory\n");
     }
+    
+    ULFS_Sync();
+}
+
+/* ------------------------------------------------------------------ */
+/*  cp — copy file                                                    */
+/* ------------------------------------------------------------------ */
+
+static void cmd_cp(int argc, char *argv[])
+{
+    if (argc < 3) {
+        HAL_UART_PutString("usage: cp <source> <destination>\n");
+        return;
+    }
+
+    int fd_src, fd_dst;
+    Status s = ULFS_Open(argv[1], ULFS_O_RDONLY, &fd_src);
+    if (s != STATUS_OK) {
+        HAL_UART_PutString("cp: cannot open '");
+        HAL_UART_PutString(argv[1]);
+        HAL_UART_PutString("' for reading\n");
+        return;
+    }
+
+    s = ULFS_Open(argv[2], ULFS_O_CREAT | ULFS_O_TRUNC | ULFS_O_WRONLY, &fd_dst);
+    if (s != STATUS_OK) {
+        HAL_UART_PutString("cp: cannot create '");
+        HAL_UART_PutString(argv[2]);
+        HAL_UART_PutString("'\n");
+        ULFS_Close(fd_src);
+        return;
+    }
+
+    uint8_t buf[256];
+    uint32_t nread, nwritten;
+    while (1) {
+        s = ULFS_Read(fd_src, buf, sizeof(buf), &nread);
+        if (s != STATUS_OK || nread == 0) break;
+
+        s = ULFS_Write(fd_dst, buf, nread, &nwritten);
+        if (s != STATUS_OK || nwritten < nread) {
+            HAL_UART_PutString("cp: write failed\n");
+            break;
+        }
+    }
+
+    ULFS_Close(fd_src);
+    ULFS_Close(fd_dst);
+
+    HAL_UART_PutString("cp: copied '");
+    HAL_UART_PutString(argv[1]);
+    HAL_UART_PutString("' to '");
+    HAL_UART_PutString(argv[2]);
+    HAL_UART_PutString("'\n");
+    
+    ULFS_Sync();
+}
+
+/* ------------------------------------------------------------------ */
+/*  mv — move file                                                    */
+/* ------------------------------------------------------------------ */
+
+static void cmd_mv(int argc, char *argv[])
+{
+    if (argc < 3) {
+        HAL_UART_PutString("usage: mv <source> <destination>\n");
+        return;
+    }
+
+    int fd_src, fd_dst;
+    Status s = ULFS_Open(argv[1], ULFS_O_RDONLY, &fd_src);
+    if (s != STATUS_OK) {
+        HAL_UART_PutString("mv: cannot read '");
+        HAL_UART_PutString(argv[1]);
+        HAL_UART_PutString("'\n");
+        return;
+    }
+
+    s = ULFS_Open(argv[2], ULFS_O_CREAT | ULFS_O_TRUNC | ULFS_O_WRONLY, &fd_dst);
+    if (s != STATUS_OK) {
+        HAL_UART_PutString("mv: cannot create '");
+        HAL_UART_PutString(argv[2]);
+        HAL_UART_PutString("'\n");
+        ULFS_Close(fd_src);
+        return;
+    }
+
+    uint8_t buf[256];
+    uint32_t nread, nwritten;
+    while (1) {
+        s = ULFS_Read(fd_src, buf, sizeof(buf), &nread);
+        if (s != STATUS_OK || nread == 0) break;
+
+        s = ULFS_Write(fd_dst, buf, nread, &nwritten);
+        if (s != STATUS_OK || nwritten < nread) break;
+    }
+
+    ULFS_Close(fd_src);
+    ULFS_Close(fd_dst);
+
+    /* Original successfully copied, now remove original */
+    ULFS_Unlink(argv[1]);
+
+    HAL_UART_PutString("mv: moved '");
+    HAL_UART_PutString(argv[1]);
+    HAL_UART_PutString("' to '");
+    HAL_UART_PutString(argv[2]);
+    HAL_UART_PutString("'\n");
+    
+    ULFS_Sync();
 }
 
 /* ------------------------------------------------------------------ */
@@ -511,6 +627,12 @@ Status FS_RegisterCommands(void)
     if (s != STATUS_OK) return s;
 
     s = CMD_Register("rm",    "Remove file or empty directory <name>",   cmd_rm);
+    if (s != STATUS_OK) return s;
+
+    s = CMD_Register("cp",    "Copy file <src> <dst>",                   cmd_cp);
+    if (s != STATUS_OK) return s;
+
+    s = CMD_Register("mv",    "Move file <src> <dst>",                   cmd_mv);
     if (s != STATUS_OK) return s;
 
     s = CMD_Register("stat",  "Show inode info <name>",                  cmd_stat);

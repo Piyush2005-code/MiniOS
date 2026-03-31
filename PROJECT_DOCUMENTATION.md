@@ -22,9 +22,10 @@
 10. [Linker Script & Memory Map](#10-linker-script--memory-map)
 11. [Background Daemons](#11-background-daemons)
 12. [Command Framework & Shell](#12-command-framework--shell)
-13. [Build System](#13-build-system)
-14. [Data Flow Diagrams](#14-data-flow-diagrams)
-15. [API Reference Summary](#15-api-reference-summary)
+13. [Storage Subsystems](#13-storage-subsystems)
+14. [Build System](#14-build-system)
+15. [Data Flow Diagrams](#15-data-flow-diagrams)
+16. [API Reference Summary](#16-api-reference-summary)
 
 ---
 
@@ -224,7 +225,9 @@ MiniOS/
 │   │   ├── thread.h           # Threading API, cpu_context_t, thread_t TCB
 │   │   ├── daemon.h           # Background daemon definitions
 │   │   ├── cmd.h              # Command Registry API
-│   │   └── shell.h            # Interactive shell daemon API
+│   │   ├── shell.h            # Interactive shell daemon API
+│   │   ├── ulfs.h             # ULFS in-memory file system API
+│   │   └── storage.h          # NVRAM abstraction layer API
 │   └── lib/
 │       └── string.h           # Freestanding string/memory utilities
 ├── src/
@@ -243,7 +246,10 @@ MiniOS/
 │   │   ├── context.S          # cpu_context_switch + _thread_entry_trampoline
 │   │   ├── daemon.c           # Built-in background daemon configurations
 │   │   ├── cmd.c              # Command tokeniser and dispatch table
-│   │   └── shell.c            # UART interactive shell loop
+│   │   ├── shell.c            # UART interactive shell loop
+│   │   ├── ulfs.c             # Ultra Lightweight File System core
+│   │   ├── fs_cmds.c          # FS shell extensions (ls, touch, etc.)
+│   │   └── storage.c          # Non-volatile storage formatting and abstraction
 │   └── lib/
 │       └── string.c           # memset, memcpy, strlen
 ├── scripts/
@@ -857,7 +863,33 @@ Provides a static command table that maps string commands to respective handlers
 
 ---
 
-## 13. Build System
+## 13. Storage Subsystems
+
+MiniOS implements a Dual-Store Ultra Lightweight File System (ULFS), offering seamless unification of a fast in-memory volatile root (`/`) and a persistent non-volatile mount (`/storage`) within a single unified path API.
+
+### 13.1 Volatile Store (Ramdisk)
+
+The primary tier of the ULFS resides entirely in memory, facilitating extremely fast temporal logging and intermediate ML inference artifacts.
+- **Capacity**: 2MB total (512 blocks of 4KB) allocated dynamically from the `KMEM_Alloc` heap upon boot.
+- **Characteristics**: Instantaneous access, completely ephemeral. All operations routed to paths outside of `/storage` natively write to this tier.
+
+### 13.2 Non-Volatile Store (NVRAM Shadow Buffer)
+
+To fulfill strict persistence requirements without compromising ML runtime performance, the secondary tier implements a robust Shadow Buffer architecture.
+- **Hardware Backend**: Interrogates QEMU `virt` machine's `pflash1` secondary flash bank mapped at `0x04000000` via Intel CFI01 command sequences (Erase/Program/Read).
+- **Shadow Buffer Strategy**: Due to the severe byte-level performance penalties characteristic of NOR flash memory mapped over an MMIO device, the flash sector (offset `0x40000`) is dumped entirely into a 2MB volatile shadow buffer on boot. All reads, writes, and modifications to the `/storage` path manipulate this shadow buffer in O(1) time. 
+- **Synchronization (`ULFS_Sync`)**: Modifying kernel commands dynamically evaluate a dirty-status flag (`g_is_dirty`). If dirtied, the `ULFS_Sync()` macro atomically flushes the 2MB shadow buffer back to the flash memory bank, guaranteeing that user configurations are cleanly persisted across ungraceful halts.
+
+### 13.3 CLI Tooling & File Manipulation
+
+The system exposes shell hooks for file maintenance across the Dual-Store API:
+- `cp <source> <destination>`: Reads the origin file block-by-block and duplicates it into the destination path, allowing files to be aggressively migrated from the volatile ramdisk to the non-volatile `/storage` mount, and vice-versa.
+- `mv <source> <destination>`: Effectively acts as `cp` followed instantaneously by `rm` to surgically transfer files between storage mediums.
+- Standard Hooks: `ls`, `mkdir`, `rm`, `cat`, `touch`, `write`, `stat`. All commands are deeply integrated with the `path_resolve()` router, making the transition between the two memory domains fully transparent to the user.
+
+---
+
+## 14. Build System
 
 ### Toolchain
 
@@ -909,9 +941,9 @@ kmem.c → thread.c → main.c         (Kernel)
 
 ---
 
-## 14. Data Flow Diagrams
+## 15. Data Flow Diagrams
 
-### 14.1 ML Inference Thread Execution Model
+### 15.1 ML Inference Thread Execution Model
 
 ```mermaid
 graph TD
@@ -928,7 +960,7 @@ graph TD
     RUN3 --> DONE[Inference Complete\nTHREAD_Exit]
 ```
 
-### 14.2 Kernel Subsystem Dependencies
+### 15.2 Kernel Subsystem Dependencies
 
 ```mermaid
 graph BT
@@ -950,7 +982,7 @@ graph BT
 
 ---
 
-## 15. API Reference Summary
+## 16. API Reference Summary
 
 ### Complete Function Index
 
@@ -986,6 +1018,10 @@ graph BT
 | | `HAL_Timer_Enable()` | void | Start timer + IRQ |
 | | `HAL_Timer_HandleIRQ()` | void | ISR: tick++ + reload |
 | | `HAL_Timer_GetSystemTicks()` | uint64_t | Monotonic ticks |
+| **flash.c** | `HAL_Flash_Init()` | Status | Flash Read Array Init |
+| | `HAL_Flash_Read(off, *d)` | Status | Reads 32-bit word |
+| | `HAL_Flash_Write(off, d)` | Status | CFI Program Word Phase |
+| | `HAL_Flash_EraseSector(off)` | Status | CFI Block Erase Phase |
 | **kmem.c** | `KMEM_Init()` | Status | Heap from linker |
 | | `KMEM_Alloc(size, align)` | void* | Bump alloc, O(1) |
 | | `KMEM_ArenaCreate(size)` | kmem_arena_t* | Resettable region |
@@ -1013,6 +1049,10 @@ graph BT
 | | `CMD_RegisterBuiltins()` | void | Add core commands |
 | | `CMD_GetTable(count*)` | const cmd_entry_t* | Get cmd table array |
 | **shell.c** | `SHELL_RegisterDaemon()` | Status | Create shell thread |
+| **storage.c**| `STORAGE_Init()` | Status | Initializes flash formatting |
+| | `STORAGE_Read(off, buf, len)` | Status | Reads NV configuration |
+| | `STORAGE_Write(off, buf, len)` | Status | Writes buffered NV data |
+| | `STORAGE_EraseSector(off)` | Status | Safely format 256KB |
 
 ---
 

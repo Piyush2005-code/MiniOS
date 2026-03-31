@@ -8,9 +8,11 @@
 
 ## 1. Executive Summary
 
-The ULFS file system was integrated into MiniOS as a minimal, in-memory, block-structured storage subsystem providing persistent-within-session file and directory management for the ARM64 unikernel. The implementation is derived from the academic paper *"ULFS: Ultra Lightweight File System"* and adapted for bare-metal ARM64 operation. The ULFS backing store occupies 2 MB of kernel heap, supports up to 512 x 4 KB blocks, exposes a Unix-like path API, and is fully wired into the interactive shell.
+The ULFS file system was integrated into MiniOS as a minimal, in-memory, block-structured storage subsystem providing persistent-within-session file and directory management for the ARM64 unikernel. The implementation is derived from the academic paper *"ULFS: Ultra Lightweight File System"* and adapted for bare-metal ARM64 operation. 
 
-**Build result:** Zero errors, `32768` bytes `.text`, well within the 256 KB SRS limit (DC-003).
+In MiniOS v0.2, the ULFS architecture was extended into a **Dual-Store Architecture**, natively supporting both a fast volatile RAM-disk (`/`) and a fully persistent NVRAM mount (`/storage`) backed by QEMU's `pflash1` secondary flash bank. The backing stores occupy 2x 2 MB of kernel heap (4 MB total), supporting up to 512 x 4 KB blocks per store. It exposes a unified Unix-like path API deeply integrated into the interactive shell, and introduces new `cp` and `mv` maintenance commands for seamless artifact migration across storage tiers.
+
+**Build result:** Zero errors, `36080` bytes `.text`, well within the 256 KB SRS limit (DC-003).
 
 ---
 
@@ -364,7 +366,6 @@ All wired into the command framework via `FS_RegisterCommands()`:
 | Fixed 2 MB total capacity | Medium | Compile-time ULFS_TOTAL_BLOCKS |
 | No timestamps (mtime/atime) | Low | 8 reserved bytes in inode available |
 | CWD string not canonicalized on `..` | Low | Recompute full path on cd |
-| No rename (mv) command | Low | dirent manipulation straightforward |
 
 ---
 
@@ -401,5 +402,26 @@ All operations are deterministically bounded -- satisfying SRS PDR-001 and PDR-0
 
 ---
 
-*MiniOS Kernel/commands branch -- commit ce8d2cc*
+## 13. Non-Volatile Storage Integration (Dual-Store)
+
+In order to meet the SRS requirement for "4MB Flash minimum" and to provide true persistence across system reboots, MiniOS integrates a non-volatile flash storage segment alongside the volatile RAM-based ULFS store. Note that ULFS currently operates as a **Dual-Store Architecture** (for high-speed temporary storage), where the root directory (`/`) maps to a 2MB volatile RAM volume, and the `/storage` path acts as a fully managed persistent mount mapped directly to a 2MB Shadow Buffer bridging the physical NVRAM.
+
+### 13.1 QEMU `pflash` Architecture
+The non-volatile storage driver (`hal/flash.c`) directly interfaces with QEMU `virt` machine's secondary flash memory bank (`pflash1`) located at physical address **`0x04000000`**. The host system backs this hardware node to an automatically generated `flash.img` (64 MB) created by `scripts/run.sh`. Fast block reads are achieved using hardware optimized memcpy routines `HAL_Flash_ReadBuffer()`.
+
+### 13.2 Intel CFI01 Flash Commands
+Because QEMU models physical flash hardware, the memory strictly enforces ROM rules (writes cannot simply alter memory states via pointers). The storage layer implements **Intel CFI01 Sequences** to modify flash:
+- **Erase:** `0x20` (Setup) followed by `0xD0` (Confirm)
+- **Program:** `0x40` (Program Setup) followed by word-write
+- **Ready Polling:** Continuous polling of the Status Register (`0x70`) until the Ready bit (`0x80`) triggers.
+
+### 13.3 Flash Storage API (`kernel/storage.h`)
+The `STORAGE_Init()` function mounts the flash layer during `KERNEL_Init()`:
+1. Validates the existence of the `"MNOS"` signature byte.
+2. If invalid or empty (e.g. freshly created `flash.img` zeroes), it executes `HAL_Flash_EraseSector(0)` and writes the magic string back.
+3. Provides high-level `STORAGE_Read`, `STORAGE_Write`, and `STORAGE_EraseSector` to cleanly interact with 256KB block sectors natively aligned limits. 
+
+---
+
+*MiniOS Kernel/commands branch -- commit ce8d2cc / Non-Volatile integration*
 *Toolchain: aarch64-elf-gcc 10+, ARM64 Cortex-A53, QEMU virt machine*

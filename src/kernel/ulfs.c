@@ -32,6 +32,7 @@
 
 #include "kernel/ulfs.h"
 #include "kernel/kmem.h"
+#include "kernel/storage.h"
 #include "lib/string.h"
 #include "hal/uart.h"
 
@@ -39,22 +40,33 @@
 /*  Internal state                                                    */
 /* ------------------------------------------------------------------ */
 
-/** Pointer to the 2 MB backing store */
-static uint8_t *g_fs_base = NULL;
+#define ULFS_STORE_VOL      0
+#define ULFS_STORE_NVRAM    1
+#define ULFS_NUM_STORES     2
 
-/** Cached pointer to the superblock */
-static ulfs_superblock_t *g_sb = NULL;
+/** Backing store pointers [0]=Volatile [1]=NVRAM */
+static uint8_t *g_fs_base[ULFS_NUM_STORES] = {NULL, NULL};
 
-/** Whether ULFS has been initialized */
+/** Cached superblocks */
+static ulfs_superblock_t *g_sb[ULFS_NUM_STORES] = {NULL, NULL};
+
+/** Dirty flags for syncing NVRAM back to flash */
+static bool g_is_dirty[ULFS_NUM_STORES] = {false, false};
+
+/** The store index currently being operated upon internally */
+static uint32_t g_current_store = 0;
+
+/** Whether ULFS base system has been initialized */
 static bool g_initialized = false;
 
 /** Open file descriptor table */
 static ulfs_fd_t g_fdt[ULFS_MAX_OPEN_FILES];
 
-/** Current working directory inode number */
+/** Current working directory (store and inode mapping) */
+static uint32_t g_cwd_store = ULFS_STORE_VOL;
 static uint32_t g_cwd_ino = 0;   /* 0 = root */
 
-/** Current working directory path string */
+/** Current working directory absolute string */
 static char g_cwd_path[ULFS_PATH_MAX] = "/";
 
 /* ------------------------------------------------------------------ */
@@ -64,12 +76,12 @@ static char g_cwd_path[ULFS_PATH_MAX] = "/";
 /** Convert a block-id to a raw byte pointer */
 static inline uint8_t *bid_to_ptr(uint32_t bid)
 {
-    return g_fs_base + (bid * ULFS_BLOCK_SIZE);
+    return g_fs_base[g_current_store] + (bid * ULFS_BLOCK_SIZE);
 }
 
 static inline ulfs_superblock_t *get_superblock(void)
 {
-    return (ulfs_superblock_t *)bid_to_ptr(ULFS_BID_SUPERBLOCK);
+    return g_sb[g_current_store];
 }
 
 static inline ulfs_mapblock_t *get_mapblock(uint32_t map_bid)
@@ -179,6 +191,7 @@ static Status bid_alloc(uint32_t *out_bid)
     for (uint32_t bid = 0; bid < ULFS_TOTAL_BLOCKS; bid++) {
         if (!bitmap_test(mb, bid)) {
             bitmap_set(mb, bid);
+            memset(bid_to_ptr(bid), 0, ULFS_BLOCK_SIZE);
             *out_bid = bid;
             return STATUS_OK;
         }
@@ -204,6 +217,8 @@ static void bid_free(uint32_t bid)
 /* ------------------------------------------------------------------ */
 /*  Inode allocation                                                 */
 /* ------------------------------------------------------------------ */
+
+#define MARK_DIRTY() do { g_is_dirty[g_current_store] = true; } while(0)
 
 /**
  * @brief Allocate a new inode.
@@ -506,11 +521,9 @@ static Status dirent_remove(uint32_t dir_ino, const char *name)
  * @param[out] absolute  Set true if path started with '/'.
  */
 static void path_split(char *path, char **parts, uint32_t max_parts,
-                       uint32_t *n_parts, bool *absolute)
+                       uint32_t *n_parts)
 {
     *n_parts  = 0;
-    *absolute = (path[0] == '/');
-
     char *p = path;
     while (*p == '/') p++;  /* skip leading slashes */
 
@@ -540,21 +553,45 @@ static Status path_resolve(const char *path, uint32_t *out_ino,
 {
     if (!path || path[0] == '\0') return STATUS_ERROR_INVALID_ARGUMENT;
 
-    /* Work on a local copy */
     char buf[ULFS_PATH_MAX];
-    ulfs_strncpy(buf, path, ULFS_PATH_MAX);
+    /* Build absolute path */
+    if (path[0] == '/') {
+        ulfs_strncpy(buf, path, ULFS_PATH_MAX);
+    } else {
+        ulfs_strncpy(buf, g_cwd_path, ULFS_PATH_MAX);
+        if (buf[ulfs_strlen(buf) - 1] != '/') {
+            ulfs_strcat(buf, "/", ULFS_PATH_MAX);
+        }
+        ulfs_strcat(buf, path, ULFS_PATH_MAX);
+    }
+
+    g_current_store = ULFS_STORE_VOL;
+    char *target_path = buf;
+
+    /* Detect mount point /storage */
+    if (buf[0] == '/' && buf[1] == 's' && buf[2] == 't' && buf[3] == 'o' && 
+        buf[4] == 'r' && buf[5] == 'a' && buf[6] == 'g' && buf[7] == 'e') 
+    {
+        if (buf[8] == '/' || buf[8] == '\0') {
+            g_current_store = ULFS_STORE_NVRAM;
+            target_path = &buf[8];
+            if (*target_path == '\0') {
+                /* Safe because buf is local and has capacity */
+                buf[8] = '/'; buf[9] = '\0';
+                target_path = &buf[8];
+            }
+        }
+    }
 
     char *parts[ULFS_MAX_DEPTH];
     uint32_t n_parts;
-    bool is_absolute;
-    path_split(buf, parts, ULFS_MAX_DEPTH, &n_parts, &is_absolute);
+    path_split(target_path, parts, ULFS_MAX_DEPTH, &n_parts);
 
-    /* Start from root (ino=0) or cwd */
-    uint32_t cur_ino    = is_absolute ? 0U : g_cwd_ino;
+    /* Start from root of the resolved store */
+    uint32_t cur_ino    = 0U;
     uint32_t parent_ino = cur_ino;
 
     if (n_parts == 0) {
-        /* Path was "/" or empty → resolves to current start */
         *out_ino = cur_ino;
         if (out_parent_ino) *out_parent_ino = cur_ino;
         if (out_name)       *out_name = "/";
@@ -565,28 +602,17 @@ static Status path_resolve(const char *path, uint32_t *out_ino,
         const char *component = parts[i];
         parent_ino = cur_ino;
 
-        if (ulfs_strcmp(component, ".") == 0) {
-            /* Stay in current directory */
-            continue;
-        } else if (ulfs_strcmp(component, "..") == 0) {
-            /* Go to parent — look up ".." in parent directory entries */
+        if (ulfs_strcmp(component, ".") == 0) continue;
+        else if (ulfs_strcmp(component, "..") == 0) {
+            if (cur_ino == 0) continue;
             uint32_t pp;
-            if (cur_ino == 0) {
-                /* Already at root */
-                continue;
-            }
-            Status s = dirent_lookup(cur_ino, "..", &pp);
-            if (s == STATUS_OK) cur_ino = pp;
-            else                cur_ino = 0; /* fallback to root */
+            if (dirent_lookup(cur_ino, "..", &pp) == STATUS_OK) cur_ino = pp;
+            else cur_ino = 0;
             parent_ino = cur_ino;
         } else {
-            /* Look up component in current directory */
             uint32_t child_ino;
-            Status s = dirent_lookup(cur_ino, component, &child_ino);
-            if (s != STATUS_OK) {
-                /* Not found — only legal if this is the last component */
+            if (dirent_lookup(cur_ino, component, &child_ino) != STATUS_OK) {
                 if (i == n_parts - 1) {
-                    /* Return "not found" with parent info for create ops */
                     *out_ino = 0xFFFFFFFFU;
                     if (out_parent_ino) *out_parent_ino = cur_ino;
                     if (out_name)       *out_name = parts[i];
@@ -596,7 +622,6 @@ static Status path_resolve(const char *path, uint32_t *out_ino,
             }
             cur_ino = child_ino;
         }
-
         if (out_name) *out_name = parts[i];
     }
 
@@ -623,35 +648,33 @@ static Status path_resolve(const char *path, uint32_t *out_ino,
  *
  * @complexity O(ULFS_STORE_SIZE / 8) for the zero-pass.
  */
-Status ULFS_Init(void)
+static void ULFS_FormatStore(uint32_t store_idx)
 {
-    if (g_initialized) return STATUS_OK;
+    g_current_store = store_idx;
+    /* Initialize memory to 0xFF (match erased flash state to avoid boot penalty) */
+    memset(g_fs_base[store_idx], 0xFF, ULFS_STORE_SIZE);
 
-    /* Step 1: allocate backing store */
-    g_fs_base = (uint8_t *)KMEM_Alloc(ULFS_STORE_SIZE, 64);
-    if (!g_fs_base) return STATUS_ERROR_OUT_OF_MEMORY;
+    /* Explicitly zero only the pre-allocated structures */
+    memset(bid_to_ptr(ULFS_BID_SUPERBLOCK), 0, ULFS_BLOCK_SIZE);
+    memset(bid_to_ptr(ULFS_BID_MAPBLOCK0), 0, ULFS_BLOCK_SIZE);
+    memset(bid_to_ptr(ULFS_BID_INODE0), 0, ULFS_BLOCK_SIZE);
+    memset(bid_to_ptr(ULFS_BID_ROOT_DIR), 0, ULFS_BLOCK_SIZE);
 
-    /* Step 2: zero everything */
-    memset(g_fs_base, 0, ULFS_STORE_SIZE);
-
-    /* Step 3: write superblock */
     ulfs_superblock_t *sb = get_superblock();
     sb->magic        = ULFS_MAGIC;
     sb->total_blocks = ULFS_TOTAL_BLOCKS;
     sb->block_size   = ULFS_BLOCK_SIZE;
     sb->inode_count  = 0;
-    g_sb = sb;
+    g_sb[store_idx]  = sb;
 
-    /* Step 4: pre-mark bids 0, 1, 2, 3 as allocated in map block */
     ulfs_mapblock_t *mb = get_mapblock(ULFS_BID_MAPBLOCK0);
-    bitmap_set(mb, 0);  /* superblock */
-    bitmap_set(mb, 1);  /* map block 0 */
-    bitmap_set(mb, 2);  /* inode block 0 */
-    bitmap_set(mb, 3);  /* root dir data block */
+    bitmap_set(mb, 0);  
+    bitmap_set(mb, 1);  
+    bitmap_set(mb, 2);  
+    bitmap_set(mb, 3);  
 
-    /* Step 5: format inode block 0 — inode 0 is the root directory */
     ulfs_inode_block_t *ib0 = get_inode_block(ULFS_BID_INODE0);
-    ib0->n_used   = 1;           /* root inode in use */
+    ib0->n_used   = 1;           
     ib0->ino_start = 0;
     ib0->bid_prev = 0;
     ib0->bid_next = 0;
@@ -659,11 +682,9 @@ Status ULFS_Init(void)
     ulfs_inode_t *root_inode = &ib0->inodes[0];
     root_inode->type     = ULFS_TYPE_DIR;
     root_inode->size     = 0;
-    root_inode->bid_head = ULFS_BID_ROOT_DIR;   /* bid 3 = root dir data */
+    root_inode->bid_head = ULFS_BID_ROOT_DIR;   
     root_inode->bid_block = 0;
 
-    /* Step 6: root dir data block (bid 3) already zeroed */
-    /* Step 7: add "." and ".." entries in root dir */
     ulfs_dirent_t *root_dir = get_dir_block(ULFS_BID_ROOT_DIR);
     root_dir[0].ino = 0;
     ulfs_strncpy(root_dir[0].name, ".", ULFS_NAME_MAX);
@@ -672,18 +693,54 @@ Status ULFS_Init(void)
     root_inode->size = 2 * sizeof(ulfs_dirent_t);
 
     sb->inode_count = 1;
+}
 
-    /* Initialize open file descriptor table */
+Status ULFS_Init(void)
+{
+    if (g_initialized) return STATUS_OK;
+
+    g_fs_base[ULFS_STORE_VOL] = (uint8_t *)KMEM_Alloc(ULFS_STORE_SIZE, 64);
+    g_fs_base[ULFS_STORE_NVRAM] = (uint8_t *)KMEM_Alloc(ULFS_STORE_SIZE, 64);
+    if (!g_fs_base[0] || !g_fs_base[1]) return STATUS_ERROR_OUT_OF_MEMORY;
+
+    ULFS_FormatStore(ULFS_STORE_VOL);
+
+    /* Offset 0x40000 avoids "MNOS" boot sector in Flash */
+    STORAGE_Read(0x40000, g_fs_base[ULFS_STORE_NVRAM], ULFS_STORE_SIZE);
+    
+    g_current_store = ULFS_STORE_NVRAM;
+    g_sb[ULFS_STORE_NVRAM] = get_superblock();
+    
+    if (g_sb[ULFS_STORE_NVRAM]->magic != ULFS_MAGIC) {
+        HAL_UART_PutString("[ULFS] Formatting NVRAM Shadow Buffer...\n");
+        ULFS_FormatStore(ULFS_STORE_NVRAM);
+        g_is_dirty[ULFS_STORE_NVRAM] = true;
+        ULFS_Sync();
+    } else {
+        HAL_UART_PutString("[ULFS] NVRAM Store Recovered!\n");
+    }
+
     memset(g_fdt, 0, sizeof(g_fdt));
-
-    /* Set CWD to root */
+    g_cwd_store = ULFS_STORE_VOL;
     g_cwd_ino = 0;
     ulfs_strncpy(g_cwd_path, "/", ULFS_PATH_MAX);
 
     g_initialized = true;
-
-    HAL_UART_PutString("[ULFS] Initialized: 512 blocks × 4 KB = 2 MB\n");
+    HAL_UART_PutString("[ULFS] Initialized Dual-Store FS\n");
     return STATUS_OK;
+}
+
+void ULFS_Sync(void)
+{
+    if (!g_is_dirty[ULFS_STORE_NVRAM]) return;
+
+    /* Flash writes are 256KB block-aligned sectors */
+    for (uint32_t i = 0; i < (ULFS_STORE_SIZE / 262144); i++) {
+        uint32_t flash_offset = 0x40000 + (i * 262144);
+        STORAGE_EraseSector(flash_offset);
+        STORAGE_Write(flash_offset, g_fs_base[ULFS_STORE_NVRAM] + (i * 262144), 262144);
+    }
+    g_is_dirty[ULFS_STORE_NVRAM] = false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -726,7 +783,8 @@ Status ULFS_Create(const char *path)
         return s;
     }
 
-    g_sb->inode_count++;
+    g_sb[g_current_store]->inode_count++;
+    MARK_DIRTY();
     return STATUS_OK;
 }
 
@@ -766,6 +824,7 @@ Status ULFS_Open(const char *path, uint8_t flags, int *fd_out)
 
     if (inode->type != ULFS_TYPE_FILE) return STATUS_ERROR_INVALID_ARGUMENT;
 
+    g_fdt[fd].store_idx = g_current_store;
     g_fdt[fd].ino   = ino;
     g_fdt[fd].pos   = (flags & ULFS_O_TRUNC) ? 0U : 0U;
     g_fdt[fd].flags = flags;
@@ -786,6 +845,7 @@ Status ULFS_Open(const char *path, uint8_t flags, int *fd_out)
             inode->bid_block = 0;
         }
         inode->size = 0;
+        MARK_DIRTY();
     }
 
     *fd_out = fd;
@@ -812,6 +872,8 @@ Status ULFS_Read(int fd, void *buf, uint32_t count, uint32_t *nread)
     if (fd < 0 || fd >= (int)ULFS_MAX_OPEN_FILES) return STATUS_ERROR_INVALID_ARGUMENT;
     if (!buf || !nread) return STATUS_ERROR_INVALID_ARGUMENT;
     if (g_fdt[fd].ino == 0) return STATUS_ERROR_INVALID_ARGUMENT;
+
+    g_current_store = g_fdt[fd].store_idx;
 
     ulfs_inode_t *inode;
     Status s = inode_get(g_fdt[fd].ino, &inode);
@@ -850,6 +912,8 @@ Status ULFS_Write(int fd, const void *buf, uint32_t count, uint32_t *nwritten)
     if (!buf || !nwritten) return STATUS_ERROR_INVALID_ARGUMENT;
     if (g_fdt[fd].ino == 0) return STATUS_ERROR_INVALID_ARGUMENT;
 
+    g_current_store = g_fdt[fd].store_idx;
+
     ulfs_inode_t *inode;
     Status s = inode_get(g_fdt[fd].ino, &inode);
     if (s != STATUS_OK) return s;
@@ -875,6 +939,7 @@ Status ULFS_Write(int fd, const void *buf, uint32_t count, uint32_t *nwritten)
         if (pos > inode->size) inode->size = pos;
     }
 
+    if (*nwritten > 0) MARK_DIRTY();
     g_fdt[fd].pos = pos;
     return STATUS_OK;
 }
@@ -928,12 +993,12 @@ Status ULFS_Mkdir(const char *path)
     /* Add entry in parent directory */
     s = dirent_add(parent_ino, basename, new_ino);
     if (s != STATUS_OK) {
-        bid_free(data_bid);
         inode_free(new_ino);
         return s;
     }
 
-    g_sb->inode_count++;
+    g_sb[g_current_store]->inode_count++;
+    MARK_DIRTY();
     return STATUS_OK;
 }
 
@@ -1042,8 +1107,9 @@ Status ULFS_Unlink(const char *path)
 
     /* Free the inode */
     inode_free(ino);
-    if (g_sb->inode_count > 0) g_sb->inode_count--;
+    if (g_sb[g_current_store]->inode_count > 0) g_sb[g_current_store]->inode_count--;
 
+    MARK_DIRTY();
     return STATUS_OK;
 }
 

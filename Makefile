@@ -52,6 +52,7 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
            $(SRC_DIR)/hal/gic.c \
            $(SRC_DIR)/hal/timer.c \
+           $(SRC_DIR)/hal/flash.c \
            $(SRC_DIR)/lib/string.c \
            $(SRC_DIR)/kernel/kmem.c \
            $(SRC_DIR)/kernel/thread.c \
@@ -60,6 +61,7 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/fs_cmds.c \
            $(SRC_DIR)/kernel/cmd.c \
            $(SRC_DIR)/kernel/shell.c \
+           $(SRC_DIR)/kernel/storage.c \
            $(SRC_DIR)/kernel/main.c
 
 # ---- Object files ----
@@ -73,7 +75,8 @@ QEMU_FLAGS = -machine virt \
              -cpu cortex-a53 \
              -m 512M \
              -nographic \
-             -kernel $(TARGET_ELF)
+             -kernel $(TARGET_ELF) \
+             -drive if=pflash,file=flash.img,format=raw,index=1
 
 # ============================================================================
 # Targets
@@ -111,9 +114,13 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # ---- Run in QEMU ----
-run: $(TARGET_ELF)
+run: $(TARGET_ELF) flash.img
 	@echo "=== Starting QEMU (Ctrl+A then X to exit) ==="
 	@$(QEMU) $(QEMU_FLAGS)
+
+flash.img:
+	@echo "Creating empty 64MB flash.img..."
+	@dd if=/dev/zero of=flash.img bs=1M count=64
 
 # ---- Debug with GDB ----
 debug: $(TARGET_ELF)

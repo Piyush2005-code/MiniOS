@@ -24,6 +24,7 @@
 #include "kernel/daemon.h"
 #include "kernel/ulfs.h"
 #include "kernel/fs_cmds.h"
+#include "kernel/storage.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols from vectors.S                                   */
@@ -339,6 +340,13 @@ void kernel_main(void)
     /* ---- Step 8d: Register file system shell commands ---- */
     status = FS_RegisterCommands();
     HAL_UART_PutString("[BOOT] FS cmds  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8e: Initialize NVRAM storage ---- */
+    HAL_UART_PutString("[BOOT] Initializing NVRAM storage...\n");
+    status = STORAGE_Init();
+    HAL_UART_PutString("[BOOT] NVRAM status: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 

@@ -16,7 +16,12 @@ if [ ! -f "$KERNEL" ]; then
     exit 1
 fi
 
-QEMU_FLAGS="-machine virt -cpu cortex-a53 -m 512M -nographic -kernel $KERNEL"
+if [ ! -f "$PROJECT_DIR/flash.img" ]; then
+    echo "Creating empty 64MB flash.img..."
+    dd if=/dev/zero of="$PROJECT_DIR/flash.img" bs=1M count=64
+fi
+
+QEMU_FLAGS="-machine virt -cpu cortex-a53 -m 512M -nographic -kernel $KERNEL -drive if=pflash,file=$PROJECT_DIR/flash.img,format=raw,index=1"
 
 if [ "$1" = "debug" ]; then
     echo "Starting QEMU in debug mode (GDB port 1234)..."

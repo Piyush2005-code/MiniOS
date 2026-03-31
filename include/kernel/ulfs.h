@@ -167,6 +167,7 @@ typedef struct {
  * @brief Open file descriptor returned by ULFS_Open / ULFS_Create
  */
 typedef struct {
+    uint32_t store_idx;/**< Store index (0=volatile, 1=non-volatile)   */
     uint32_t ino;      /**< Inode number of this file (0 = slot free)  */
     uint32_t pos;      /**< Current read/write byte position            */
     uint8_t  flags;    /**< Open flags: bit0=read, bit1=write           */
@@ -206,6 +207,14 @@ typedef struct {
  * @complexity O(1) — fixed-size format pass.
  */
 Status ULFS_Init(void);
+
+/**
+ * @brief Sync the Non-Volatile file system to underlying Flash Memory.
+ *
+ * Checks if the NVRAM shadow buffer has been modified. If so, it
+ * actively commits the entire 2 MB memory slab to QEMU pflash1.
+ */
+void ULFS_Sync(void);
 
 /**
  * @brief Open (and optionally create) a file.

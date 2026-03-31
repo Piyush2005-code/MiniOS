@@ -1,6 +1,6 @@
 ARCHITECTURE_DIAGRAMS.md
 build
-
+qemu.log
 *.csv
 .gitignore
 ProjectDocumentation.md
@@ -8,4 +8,6 @@ PROJECT_DOCUMENTATION.md
 PROGRESS_REPORT.md
 BRANCH_PROGRESS_REPORT.md
 daemon_design.md
-
+implementation_plan.md
+implementation_plan_flash_img.md
+implementation_plan_mv_cp.md
