@@ -155,6 +155,104 @@ static void proto_skip_field(ProtoReader* reader, ProtoWireType wire_type)
     }
 }
 
+/* Parse AttributeProto */
+static void proto_parse_attribute(ProtoReader* reader, uint64_t attr_msg_len, ONNX_Attributes* attrs)
+{
+    uint64_t end_pos = reader->pos + attr_msg_len;
+    char name[ONNX_MAX_NAME_LEN] = {0};
+
+    while (reader->pos < end_pos && reader->pos < reader->size) {
+        ProtoWireType wire_type;
+        uint32_t field = proto_read_tag(reader, &wire_type);
+
+        if (field == 1) {  /* name */
+            proto_read_string(reader, name, sizeof(name));
+        }
+        else if (field == 3) {  /* i (int) */
+            uint64_t val = proto_read_varint(reader);
+            if (name[0] == 'a' && name[1] == 'x' && name[2] == 'i' && name[3] == 's' && name[4] == '\0') {
+                attrs->axis = (int64_t)val;
+            } else if (name[0] == 'k' && name[1] == 'e' && name[2] == 'e' && name[3] == 'p' &&
+                       name[4] == 'd' && name[5] == 'i' && name[6] == 'm' && name[7] == 's' && name[8] == '\0') {
+                attrs->keepdims = (int64_t)val;
+            } else if (name[0] == 'g' && name[1] == 'r' && name[2] == 'o' && name[3] == 'u' && name[4] == 'p' && name[5] == '\0') {
+                attrs->group = (int64_t)val;
+            }
+        }
+        else if (field == 4) {  /* f (float) */
+            uint32_t val_bits = 0;
+            if (reader->pos + 4 <= reader->size) {
+                val_bits = ((uint32_t)reader->data[reader->pos]) |
+                           (((uint32_t)reader->data[reader->pos+1]) << 8) |
+                           (((uint32_t)reader->data[reader->pos+2]) << 16) |
+                           (((uint32_t)reader->data[reader->pos+3]) << 24);
+                reader->pos += 4;
+            }
+            float val = 0.0f;
+            memcpy(&val, &val_bits, sizeof(float));
+
+            if (name[0] == 'a' && name[1] == 'l' && name[2] == 'p' && name[3] == 'h' && name[4] == 'a' && name[5] == '\0') {
+                attrs->alpha = val;
+            } else if (name[0] == 'b' && name[1] == 'e' && name[2] == 't' && name[3] == 'a' && name[4] == '\0') {
+                attrs->beta = val;
+            }
+        }
+        else if (field == 7) {  /* ints (repeated int64) */
+            if (wire_type == WIRE_LENGTH_DELIMITED) {
+                uint64_t len = proto_read_varint(reader);
+                uint64_t end_packed = reader->pos + len;
+
+                bool is_kernel = (name[0] == 'k' && name[1] == 'e' && name[2] == 'r' && name[3] == 'n' && name[4] == 'e' && name[5] == 'l');
+                bool is_strides = (name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] == 'i' && name[4] == 'd' && name[5] == 'e' && name[6] == 's');
+                bool is_pads = (name[0] == 'p' && name[1] == 'a' && name[2] == 'd' && name[3] == 's');
+                bool is_dilations = (name[0] == 'd' && name[1] == 'i' && name[2] == 'l' && name[3] == 'a' && name[4] == 't' && name[5] == 'i');
+
+                while (reader->pos < end_packed && reader->pos < reader->size) {
+                    uint64_t val = proto_read_varint(reader);
+                    if (is_kernel && attrs->kernel_shape_len < ONNX_MAX_ATTR_INTS) {
+                        attrs->kernel_shape[attrs->kernel_shape_len++] = (int64_t)val;
+                    } else if (is_strides && attrs->strides_len < ONNX_MAX_ATTR_INTS) {
+                        attrs->strides[attrs->strides_len++] = (int64_t)val;
+                    } else if (is_pads && attrs->pads_len < ONNX_MAX_ATTR_INTS) {
+                        attrs->pads[attrs->pads_len++] = (int64_t)val;
+                    } else if (is_dilations && attrs->dilations_len < ONNX_MAX_ATTR_INTS) {
+                        attrs->dilations[attrs->dilations_len++] = (int64_t)val;
+                    }
+                }
+            } else if (wire_type == WIRE_VARINT) {
+                uint64_t val = proto_read_varint(reader);
+                bool is_kernel = (name[0] == 'k' && name[1] == 'e' && name[2] == 'r' && name[3] == 'n' && name[4] == 'e' && name[5] == 'l');
+                bool is_strides = (name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] == 'i' && name[4] == 'd' && name[5] == 'e' && name[6] == 's');
+                bool is_pads = (name[0] == 'p' && name[1] == 'a' && name[2] == 'd' && name[3] == 's');
+                bool is_dilations = (name[0] == 'd' && name[1] == 'i' && name[2] == 'l' && name[3] == 'a' && name[4] == 't' && name[5] == 'i');
+
+                if (is_kernel && attrs->kernel_shape_len < ONNX_MAX_ATTR_INTS) {
+                    attrs->kernel_shape[attrs->kernel_shape_len++] = (int64_t)val;
+                } else if (is_strides && attrs->strides_len < ONNX_MAX_ATTR_INTS) {
+                    attrs->strides[attrs->strides_len++] = (int64_t)val;
+                } else if (is_pads && attrs->pads_len < ONNX_MAX_ATTR_INTS) {
+                    attrs->pads[attrs->pads_len++] = (int64_t)val;
+                } else if (is_dilations && attrs->dilations_len < ONNX_MAX_ATTR_INTS) {
+                    attrs->dilations[attrs->dilations_len++] = (int64_t)val;
+                }
+            } else {
+                proto_skip_field(reader, wire_type);
+            }
+        }
+        else if (field == 6) {  /* floats */
+            if (wire_type == WIRE_LENGTH_DELIMITED) {
+                uint64_t len = proto_read_varint(reader);
+                reader->pos += len;
+            } else {
+                proto_skip_field(reader, wire_type);
+            }
+        }
+        else {
+            proto_skip_field(reader, wire_type);
+        }
+    }
+}
+
 /* Parse TensorProto and create ONNX_Tensor
  * Bug fixes applied:
  *   Bug 1 – field 8 is TensorProto.name (not field 3 = segment)
@@ -302,9 +400,10 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
     char outputs[ONNX_MAX_OUTPUTS][ONNX_MAX_NAME_LEN];
     uint32_t num_inputs = 0;
     uint32_t num_outputs = 0;
-    
+    ONNX_Attributes attrs = {0};
+
     uint64_t end_pos = reader->pos + node_msg_len;
-    
+
     /* Initialize input/output arrays */
     uint32_t i;
     for (i = 0; i < ONNX_MAX_INPUTS; i++) {
@@ -313,11 +412,11 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
     for (i = 0; i < ONNX_MAX_OUTPUTS; i++) {
         outputs[i][0] = '\0';
     }
-    
+
     while (reader->pos < end_pos && reader->pos < reader->size) {
         ProtoWireType wire_type;
         uint32_t field = proto_read_tag(reader, &wire_type);
-        
+
         if (field == 1) {  /* input - repeated string */
             if (num_inputs < ONNX_MAX_INPUTS) {
                 proto_read_string(reader, inputs[num_inputs], ONNX_MAX_NAME_LEN);
@@ -339,6 +438,10 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
         }
         else if (field == 4) {  /* op_type - string */
             proto_read_string(reader, op_type, sizeof(op_type));
+        }
+        else if (field == 5) {  /* attribute - repeated AttributeProto */
+            uint64_t attr_len = proto_read_varint(reader);
+            proto_parse_attribute(reader, attr_len, &attrs);
         }
         else {
             proto_skip_field(reader, wire_type);
@@ -436,7 +539,10 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
     if (!node) {
         return STATUS_ERROR_OUT_OF_MEMORY;
     }
-    
+
+    /* Assign attributes to node */
+    node->attributes = attrs;
+
     /* Placeholder shape for missing tensors */
     ONNX_TensorShape placeholder_shape;
     placeholder_shape.ndim = 1;
