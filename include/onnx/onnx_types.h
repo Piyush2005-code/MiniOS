@@ -75,6 +75,27 @@ typedef enum {
     ONNX_OP_UNSQUEEZE,
     ONNX_OP_CAST,
 
+    /* Mathematical / Element-wise */
+    ONNX_OP_ABS,
+    ONNX_OP_NEG,
+    ONNX_OP_EXP,
+    ONNX_OP_LOG,
+    ONNX_OP_SQRT,
+    ONNX_OP_CEIL,
+    ONNX_OP_FLOOR,
+    ONNX_OP_SIN,
+    ONNX_OP_COS,
+
+    /* Reductions */
+    ONNX_OP_REDUCESUM,
+    ONNX_OP_REDUCEMEAN,
+    ONNX_OP_REDUCEMAX,
+    ONNX_OP_REDUCEMIN,
+
+    /* Utility */
+    ONNX_OP_CLIP,
+    ONNX_OP_IDENTITY,
+
     ONNX_OP_MAX_VALUE
 } ONNX_OperatorType;
 

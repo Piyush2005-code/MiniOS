@@ -34,6 +34,21 @@ const char* ONNX_GetOperatorName(ONNX_OperatorType op_type)
         case ONNX_OP_SQUEEZE:    return "Squeeze";
         case ONNX_OP_UNSQUEEZE:  return "Unsqueeze";
         case ONNX_OP_CAST:       return "Cast";
+        case ONNX_OP_ABS:        return "Abs";
+        case ONNX_OP_NEG:        return "Neg";
+        case ONNX_OP_EXP:        return "Exp";
+        case ONNX_OP_LOG:        return "Log";
+        case ONNX_OP_SQRT:       return "Sqrt";
+        case ONNX_OP_CEIL:       return "Ceil";
+        case ONNX_OP_FLOOR:      return "Floor";
+        case ONNX_OP_SIN:        return "Sin";
+        case ONNX_OP_COS:        return "Cos";
+        case ONNX_OP_REDUCESUM:  return "ReduceSum";
+        case ONNX_OP_REDUCEMEAN: return "ReduceMean";
+        case ONNX_OP_REDUCEMAX:  return "ReduceMax";
+        case ONNX_OP_REDUCEMIN:  return "ReduceMin";
+        case ONNX_OP_CLIP:       return "Clip";
+        case ONNX_OP_IDENTITY:   return "Identity";
         default:                 return "Unknown";
     }
 }
