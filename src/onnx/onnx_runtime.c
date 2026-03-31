@@ -460,7 +460,48 @@ Status ONNX_Execute_Reshape(ONNX_Node* node, ONNX_InferenceContext* ctx)
     }
 
     ONNX_Tensor* data = node->inputs[0];
+    ONNX_Tensor* shape = node->inputs[1];
     ONNX_Tensor* out = node->outputs[0];
+
+    if (data->dtype != ONNX_DTYPE_FLOAT32) {
+        return STATUS_ERROR_NOT_SUPPORTED;
+    }
+
+    /* Update shape based on the second input */
+    if (shape && shape->data) {
+        int64_t* shape_data = (int64_t*)shape->data;
+        uint32_t ndim = shape->shape.total_elements;
+
+        if (ndim <= ONNX_MAX_DIMS) {
+            out->shape.ndim = ndim;
+            uint64_t total = 1;
+            int unknown_dim_idx = -1;
+
+            for (uint32_t i = 0; i < ndim; i++) {
+                if (shape_data[i] == -1) {
+                    unknown_dim_idx = i;
+                    out->shape.dims[i] = 1; /* temporary */
+                } else if (shape_data[i] == 0) {
+                    out->shape.dims[i] = data->shape.dims[i];
+                    total *= out->shape.dims[i];
+                } else {
+                    out->shape.dims[i] = shape_data[i];
+                    total *= out->shape.dims[i];
+                }
+            }
+
+            /* Resolve unknown dimension if any */
+            if (unknown_dim_idx != -1) {
+                out->shape.dims[unknown_dim_idx] = data->shape.total_elements / total;
+                total *= out->shape.dims[unknown_dim_idx];
+            }
+
+            out->shape.total_elements = total;
+            out->data_size = total * ONNX_GetDataTypeSize(out->dtype);
+        }
+    } else {
+        out->shape = data->shape;
+    }
 
     /* In a real implementation, we'd read the shape tensor and update out->shape.
      * Here we just copy the data if memory is distinct, or do nothing if same memory. */
@@ -481,6 +522,37 @@ Status ONNX_Execute_Flatten(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* data = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    if (data->dtype != ONNX_DTYPE_FLOAT32) {
+        return STATUS_ERROR_NOT_SUPPORTED;
+    }
+
+    /* Update shape for flatten */
+    int axis = node->attributes.axis;
+    if (axis == 0) { /* Default axis for Flatten is 1 in newer ONNX versions, but we'll respect attributes */
+        /* If no attribute is set, axis defaults to 1. But our structs zero-initialize it.
+         * Let's assume axis 1 if it's 0 and ndim > 1 for safety, or strictly follow ONNX default.
+         * ONNX Default is axis=1. */
+        axis = 1;
+    }
+
+    if (axis < 0) axis += data->shape.ndim;
+    if (axis < 0 || (uint32_t)axis > data->shape.ndim) axis = data->shape.ndim;
+
+    uint64_t dim1 = 1;
+    for (int i = 0; i < axis; i++) {
+        dim1 *= data->shape.dims[i];
+    }
+
+    uint64_t dim2 = 1;
+    for (uint32_t i = axis; i < data->shape.ndim; i++) {
+        dim2 *= data->shape.dims[i];
+    }
+
+    out->shape.ndim = 2;
+    out->shape.dims[0] = dim1;
+    out->shape.dims[1] = dim2;
+    out->shape.total_elements = dim1 * dim2;
 
     /* Flatten changes shape but leaves memory layout identical */
     if (data->data != out->data) {
@@ -783,6 +855,338 @@ Status ONNX_Execute_Cast(ONNX_Node* node, ONNX_InferenceContext* ctx)
     return STATUS_ERROR_NOT_SUPPORTED;
 }
 
+static Status ONNX_Execute_Abs(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_abs(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Neg(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = -in_data[i];
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Exp(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_exp(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Log(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_log(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Sqrt(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_sqrt(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Ceil(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_ceil(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Floor(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_floor(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Sin(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_sin(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Cos(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        out_data[i] = fast_cos(in_data[i]);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Identity(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    if (in->data != out->data) {
+        mem_copy(out->data, in->data, in->data_size);
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_Clip(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs < 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    float min_val = -1e38f; // approx -inf
+    float max_val = 1e38f;  // approx inf
+
+    if (node->num_inputs > 1 && node->inputs[1] && node->inputs[1]->data) {
+        min_val = ((float*)node->inputs[1]->data)[0];
+    }
+    if (node->num_inputs > 2 && node->inputs[2] && node->inputs[2]->data) {
+        max_val = ((float*)node->inputs[2]->data)[0];
+    }
+
+    uint64_t n = in->shape.total_elements;
+    float* in_data = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    for (uint64_t i = 0; i < n; i++) {
+        float v = in_data[i];
+        if (v < min_val) v = min_val;
+        if (v > max_val) v = max_val;
+        out_data[i] = v;
+    }
+    return STATUS_OK;
+}
+
+static Status ONNX_Execute_ReduceSum(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    int axis = node->attributes.axis;
+    if (axis == -1 || in->shape.ndim == 1) {
+        float sum = 0.0f;
+        uint64_t n = in->shape.total_elements;
+        float* in_data = (float*)in->data;
+        for (uint64_t i = 0; i < n; i++) sum += in_data[i];
+        ((float*)out->data)[0] = sum;
+        return STATUS_OK;
+    }
+
+    /* Naive support only for reducing full tensor so far, extend as needed */
+    HAL_UART_PutString("[ONNX] ReduceSum axis != -1 not fully implemented\n");
+    return STATUS_ERROR_NOT_SUPPORTED;
+}
+
+static Status ONNX_Execute_ReduceMean(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    int axis = node->attributes.axis;
+    if (axis == -1 || in->shape.ndim == 1) {
+        float sum = 0.0f;
+        uint64_t n = in->shape.total_elements;
+        float* in_data = (float*)in->data;
+        for (uint64_t i = 0; i < n; i++) sum += in_data[i];
+        ((float*)out->data)[0] = n > 0 ? (sum / n) : 0.0f;
+        return STATUS_OK;
+    }
+
+    HAL_UART_PutString("[ONNX] ReduceMean axis != -1 not fully implemented\n");
+    return STATUS_ERROR_NOT_SUPPORTED;
+}
+
+static Status ONNX_Execute_ReduceMax(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    int axis = node->attributes.axis;
+    if (axis == -1 || in->shape.ndim == 1) {
+        uint64_t n = in->shape.total_elements;
+        if (n == 0) return STATUS_OK;
+        float* in_data = (float*)in->data;
+        float max_val = in_data[0];
+        for (uint64_t i = 1; i < n; i++) {
+            if (in_data[i] > max_val) max_val = in_data[i];
+        }
+        ((float*)out->data)[0] = max_val;
+        return STATUS_OK;
+    }
+
+    HAL_UART_PutString("[ONNX] ReduceMax axis != -1 not fully implemented\n");
+    return STATUS_ERROR_NOT_SUPPORTED;
+}
+
+static Status ONNX_Execute_ReduceMin(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+
+    int axis = node->attributes.axis;
+    if (axis == -1 || in->shape.ndim == 1) {
+        uint64_t n = in->shape.total_elements;
+        if (n == 0) return STATUS_OK;
+        float* in_data = (float*)in->data;
+        float min_val = in_data[0];
+        for (uint64_t i = 1; i < n; i++) {
+            if (in_data[i] < min_val) min_val = in_data[i];
+        }
+        ((float*)out->data)[0] = min_val;
+        return STATUS_OK;
+    }
+
+    HAL_UART_PutString("[ONNX] ReduceMin axis != -1 not fully implemented\n");
+    return STATUS_ERROR_NOT_SUPPORTED;
+}
+
 Status ONNX_Execute_Arithmetic(ONNX_Node* node, ONNX_InferenceContext* ctx)
 {
     switch (node->op_type) {
@@ -1071,13 +1475,73 @@ Status ONNX_Runtime_ExecuteNode(ONNX_InferenceContext* ctx, ONNX_Node* node)
             status = ONNX_Execute_Cast(node, ctx);
             break;
 
+        case ONNX_OP_ABS:
+            status = ONNX_Execute_Abs(node, ctx);
+            break;
+
+        case ONNX_OP_NEG:
+            status = ONNX_Execute_Neg(node, ctx);
+            break;
+
+        case ONNX_OP_EXP:
+            status = ONNX_Execute_Exp(node, ctx);
+            break;
+
+        case ONNX_OP_LOG:
+            status = ONNX_Execute_Log(node, ctx);
+            break;
+
+        case ONNX_OP_SQRT:
+            status = ONNX_Execute_Sqrt(node, ctx);
+            break;
+
+        case ONNX_OP_CEIL:
+            status = ONNX_Execute_Ceil(node, ctx);
+            break;
+
+        case ONNX_OP_FLOOR:
+            status = ONNX_Execute_Floor(node, ctx);
+            break;
+
+        case ONNX_OP_SIN:
+            status = ONNX_Execute_Sin(node, ctx);
+            break;
+
+        case ONNX_OP_COS:
+            status = ONNX_Execute_Cos(node, ctx);
+            break;
+
+        case ONNX_OP_IDENTITY:
+            status = ONNX_Execute_Identity(node, ctx);
+            break;
+
+        case ONNX_OP_CLIP:
+            status = ONNX_Execute_Clip(node, ctx);
+            break;
+
+        case ONNX_OP_REDUCESUM:
+            status = ONNX_Execute_ReduceSum(node, ctx);
+            break;
+
+        case ONNX_OP_REDUCEMEAN:
+            status = ONNX_Execute_ReduceMean(node, ctx);
+            break;
+
+        case ONNX_OP_REDUCEMAX:
+            status = ONNX_Execute_ReduceMax(node, ctx);
+            break;
+
+        case ONNX_OP_REDUCEMIN:
+            status = ONNX_Execute_ReduceMin(node, ctx);
+            break;
+
         default:
             HAL_UART_PutString("[ONNX] Error: Unsupported operator: ");
             HAL_UART_PutString(ONNX_GetOperatorName(node->op_type));
             HAL_UART_PutString("\n");
             return STATUS_ERROR_UNSUPPORTED_OPERATOR;
     }
-    
+
     if (status == STATUS_OK) {
         node->exec_count++;
     }
