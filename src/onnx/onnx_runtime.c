@@ -70,6 +70,69 @@ void ONNX_Runtime_Cleanup(ONNX_InferenceContext* ctx)
 }
 
 /* Simple math helpers for bare-metal environment */
+static float fast_abs(float x)
+{
+    return x < 0.0f ? -x : x;
+}
+
+static float fast_log(float x)
+{
+    /* Simple Newton-Raphson or Halley's method is too complex for here,
+       using a very basic approximation or just returning 0 for now.
+       A real bare-metal math lib would implement this properly. */
+    if (x <= 0.0f) return -1000.0f; // -infinity approximation
+
+    // Very rough approximation: log(x) ~ (x-1)/(x+1) * 2
+    float y = (x - 1.0f) / (x + 1.0f);
+    return 2.0f * y * (1.0f + (y*y)/3.0f + (y*y*y*y)/5.0f);
+}
+
+static float fast_sqrt(float x)
+{
+    if (x <= 0.0f) return 0.0f;
+    float res = x;
+    for (int i = 0; i < 10; i++) {
+        res = 0.5f * (res + x / res);
+    }
+    return res;
+}
+
+static float fast_ceil(float x)
+{
+    int i = (int)x;
+    return (x == (float)i) ? x : ((x > 0.0f) ? (float)(i + 1) : (float)i);
+}
+
+static float fast_floor(float x)
+{
+    int i = (int)x;
+    return (x == (float)i) ? x : ((x > 0.0f) ? (float)i : (float)(i - 1));
+}
+
+static float fast_sin(float x)
+{
+    // Wrap to [-pi, pi]
+    float pi = 3.1415926535f;
+    while (x > pi) x -= 2.0f * pi;
+    while (x < -pi) x += 2.0f * pi;
+
+    // Taylor series: x - x^3/3! + x^5/5! - x^7/7!
+    float x2 = x * x;
+    return x * (1.0f - x2/6.0f + (x2*x2)/120.0f - (x2*x2*x2)/5040.0f);
+}
+
+static float fast_cos(float x)
+{
+    // Wrap to [-pi, pi]
+    float pi = 3.1415926535f;
+    while (x > pi) x -= 2.0f * pi;
+    while (x < -pi) x += 2.0f * pi;
+
+    // Taylor series: 1 - x^2/2! + x^4/4! - x^6/6!
+    float x2 = x * x;
+    return 1.0f - x2/2.0f + (x2*x2)/24.0f - (x2*x2*x2)/720.0f;
+}
+
 static float fast_exp(float x)
 {
     /* Very basic Taylor series approximation for exp(x)

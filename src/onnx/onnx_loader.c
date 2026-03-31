@@ -398,6 +398,36 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
             op_enum = ONNX_OP_UNSQUEEZE;
         } else if (op_type[0] == 'C' && op_type[1] == 'a' && op_type[2] == 's' && op_type[3] == 't') {
             op_enum = ONNX_OP_CAST;
+        } else if (op_type[0] == 'A' && op_type[1] == 'b' && op_type[2] == 's' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_ABS;
+        } else if (op_type[0] == 'N' && op_type[1] == 'e' && op_type[2] == 'g' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_NEG;
+        } else if (op_type[0] == 'E' && op_type[1] == 'x' && op_type[2] == 'p' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_EXP;
+        } else if (op_type[0] == 'L' && op_type[1] == 'o' && op_type[2] == 'g' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_LOG;
+        } else if (op_type[0] == 'S' && op_type[1] == 'q' && op_type[2] == 'r' && op_type[3] == 't') {
+            op_enum = ONNX_OP_SQRT;
+        } else if (op_type[0] == 'C' && op_type[1] == 'e' && op_type[2] == 'i' && op_type[3] == 'l') {
+            op_enum = ONNX_OP_CEIL;
+        } else if (op_type[0] == 'F' && op_type[1] == 'l' && op_type[2] == 'o' && op_type[3] == 'o') {
+            op_enum = ONNX_OP_FLOOR;
+        } else if (op_type[0] == 'S' && op_type[1] == 'i' && op_type[2] == 'n' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_SIN;
+        } else if (op_type[0] == 'C' && op_type[1] == 'o' && op_type[2] == 's' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_COS;
+        } else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 'd' && op_type[3] == 'u' && op_type[6] == 'S') {
+            op_enum = ONNX_OP_REDUCESUM;
+        } else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 'd' && op_type[3] == 'u' && op_type[6] == 'M' && op_type[7] == 'e') {
+            op_enum = ONNX_OP_REDUCEMEAN;
+        } else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 'd' && op_type[3] == 'u' && op_type[6] == 'M' && op_type[7] == 'a') {
+            op_enum = ONNX_OP_REDUCEMAX;
+        } else if (op_type[0] == 'R' && op_type[1] == 'e' && op_type[2] == 'd' && op_type[3] == 'u' && op_type[6] == 'M' && op_type[7] == 'i') {
+            op_enum = ONNX_OP_REDUCEMIN;
+        } else if (op_type[0] == 'C' && op_type[1] == 'l' && op_type[2] == 'i' && op_type[3] == 'p') {
+            op_enum = ONNX_OP_CLIP;
+        } else if (op_type[0] == 'I' && op_type[1] == 'd' && op_type[2] == 'e' && op_type[3] == 'n') {
+            op_enum = ONNX_OP_IDENTITY;
         }
     }
     
