@@ -7,7 +7,9 @@
 #include "onnx/onnx_graph.h"
 #include "onnx/onnx_types.h"
 #include "hal/uart.h"
+#include "hal/timer.h"
 #include "kernel/kmem.h"
+#include "kernel/thread.h"
 #include "status.h"
 
 /* Simple memory operations */
@@ -1232,11 +1234,21 @@ Status ONNX_Execute_Conv(ONNX_Node* node, ONNX_InferenceContext* ctx)
     uint32_t w_in = x->shape.dims[3];
 
     uint32_t c_out = w->shape.dims[0];
-    uint32_t k_h = w->shape.dims[2];
-    uint32_t k_w = w->shape.dims[3];
+    uint32_t k_h = (node->attributes.kernel_shape_len >= 1) ? (uint32_t)node->attributes.kernel_shape[0] : (uint32_t)w->shape.dims[2];
+    uint32_t k_w = (node->attributes.kernel_shape_len >= 2) ? (uint32_t)node->attributes.kernel_shape[1] : (uint32_t)w->shape.dims[3];
 
-    uint32_t h_out = y->shape.dims[2];
-    uint32_t w_out = y->shape.dims[3];
+    uint32_t stride_h = (node->attributes.strides_len >= 1) ? (uint32_t)node->attributes.strides[0] : 1;
+    uint32_t stride_w = (node->attributes.strides_len >= 2) ? (uint32_t)node->attributes.strides[1] : stride_h;
+
+    uint32_t pad_h = (node->attributes.pads_len >= 1) ? (uint32_t)node->attributes.pads[0] : 0;
+    uint32_t pad_w = (node->attributes.pads_len >= 2) ? (uint32_t)node->attributes.pads[1] : 0;
+
+    uint32_t h_out = (h_in + 2 * pad_h - k_h) / stride_h + 1;
+    uint32_t w_out = (w_in + 2 * pad_w - k_w) / stride_w + 1;
+
+    y->shape.dims[2] = h_out;
+    y->shape.dims[3] = w_out;
+    y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
 
     float* x_data = (float*)x->data;
     float* w_data = (float*)w->data;
@@ -1252,10 +1264,10 @@ Status ONNX_Execute_Conv(ONNX_Node* node, ONNX_InferenceContext* ctx)
                 for (uint32_t ic = 0; ic < c_in; ic++) {
                     for (uint32_t kh = 0; kh < k_h; kh++) {
                         for (uint32_t kw = 0; kw < k_w; kw++) {
-                            uint32_t ih = oh + kh; // assuming stride=1, pad=0
-                            uint32_t iw = ow + kw;
+                            int32_t ih = oh * stride_h + kh - pad_h;
+                            int32_t iw = ow * stride_w + kw - pad_w;
 
-                            if (ih < h_in && iw < w_in) {
+                            if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
                                 float val_x = x_data[ic * h_in * w_in + ih * w_in + iw];
                                 float val_w = w_data[oc * c_in * k_h * k_w + ic * k_h * k_w + kh * k_w + kw];
                                 sum += val_x * val_w;
@@ -1290,12 +1302,21 @@ Status ONNX_Execute_MaxPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
     uint32_t h_in = x->shape.dims[2];
     uint32_t w_in = x->shape.dims[3];
 
-    uint32_t h_out = y->shape.dims[2];
-    uint32_t w_out = y->shape.dims[3];
+    uint32_t k_h = (node->attributes.kernel_shape_len >= 1) ? (uint32_t)node->attributes.kernel_shape[0] : 2;
+    uint32_t k_w = (node->attributes.kernel_shape_len >= 2) ? (uint32_t)node->attributes.kernel_shape[1] : 2;
 
-    /* Assume 2x2 pool for now */
-    uint32_t k_h = 2, k_w = 2;
-    uint32_t stride_h = 2, stride_w = 2;
+    uint32_t stride_h = (node->attributes.strides_len >= 1) ? (uint32_t)node->attributes.strides[0] : 2;
+    uint32_t stride_w = (node->attributes.strides_len >= 2) ? (uint32_t)node->attributes.strides[1] : stride_h;
+
+    uint32_t pad_h = (node->attributes.pads_len >= 1) ? (uint32_t)node->attributes.pads[0] : 0;
+    uint32_t pad_w = (node->attributes.pads_len >= 2) ? (uint32_t)node->attributes.pads[1] : 0;
+
+    uint32_t h_out = (h_in + 2 * pad_h - k_h) / stride_h + 1;
+    uint32_t w_out = (w_in + 2 * pad_w - k_w) / stride_w + 1;
+
+    y->shape.dims[2] = h_out;
+    y->shape.dims[3] = w_out;
+    y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
 
     float* x_data = (float*)x->data;
     float* y_data = (float*)y->data;
@@ -1307,10 +1328,10 @@ Status ONNX_Execute_MaxPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
                 for (uint32_t kh = 0; kh < k_h; kh++) {
                     for (uint32_t kw = 0; kw < k_w; kw++) {
-                        uint32_t ih = oh * stride_h + kh;
-                        uint32_t iw = ow * stride_w + kw;
+                        int32_t ih = oh * stride_h + kh - pad_h;
+                        int32_t iw = ow * stride_w + kw - pad_w;
 
-                        if (ih < h_in && iw < w_in) {
+                        if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
                             float val = x_data[ic * h_in * w_in + ih * w_in + iw];
                             if (val > max_val) max_val = val;
                         }
@@ -1343,12 +1364,21 @@ Status ONNX_Execute_AvgPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
     uint32_t h_in = x->shape.dims[2];
     uint32_t w_in = x->shape.dims[3];
 
-    uint32_t h_out = y->shape.dims[2];
-    uint32_t w_out = y->shape.dims[3];
+    uint32_t k_h = (node->attributes.kernel_shape_len >= 1) ? (uint32_t)node->attributes.kernel_shape[0] : 2;
+    uint32_t k_w = (node->attributes.kernel_shape_len >= 2) ? (uint32_t)node->attributes.kernel_shape[1] : 2;
 
-    /* Assume 2x2 pool for now */
-    uint32_t k_h = 2, k_w = 2;
-    uint32_t stride_h = 2, stride_w = 2;
+    uint32_t stride_h = (node->attributes.strides_len >= 1) ? (uint32_t)node->attributes.strides[0] : 2;
+    uint32_t stride_w = (node->attributes.strides_len >= 2) ? (uint32_t)node->attributes.strides[1] : stride_h;
+
+    uint32_t pad_h = (node->attributes.pads_len >= 1) ? (uint32_t)node->attributes.pads[0] : 0;
+    uint32_t pad_w = (node->attributes.pads_len >= 2) ? (uint32_t)node->attributes.pads[1] : 0;
+
+    uint32_t h_out = (h_in + 2 * pad_h - k_h) / stride_h + 1;
+    uint32_t w_out = (w_in + 2 * pad_w - k_w) / stride_w + 1;
+
+    y->shape.dims[2] = h_out;
+    y->shape.dims[3] = w_out;
+    y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
 
     float* x_data = (float*)x->data;
     float* y_data = (float*)y->data;
@@ -1361,10 +1391,10 @@ Status ONNX_Execute_AvgPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
                 for (uint32_t kh = 0; kh < k_h; kh++) {
                     for (uint32_t kw = 0; kw < k_w; kw++) {
-                        uint32_t ih = oh * stride_h + kh;
-                        uint32_t iw = ow * stride_w + kw;
+                        int32_t ih = oh * stride_h + kh - pad_h;
+                        int32_t iw = ow * stride_w + kw - pad_w;
 
-                        if (ih < h_in && iw < w_in) {
+                        if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
                             sum += x_data[ic * h_in * w_in + ih * w_in + iw];
                             count++;
                         }
@@ -1389,7 +1419,9 @@ Status ONNX_Runtime_ExecuteNode(ONNX_InferenceContext* ctx, ONNX_Node* node)
     }
     
     Status status = STATUS_OK;
-    
+
+    uint64_t _t0 = HAL_Timer_GetTicks();
+
     /* Dispatch based on operator type */
     switch (node->op_type) {
         case ONNX_OP_ADD:
@@ -1543,6 +1575,7 @@ Status ONNX_Runtime_ExecuteNode(ONNX_InferenceContext* ctx, ONNX_Node* node)
     }
 
     if (status == STATUS_OK) {
+        node->exec_time_us += HAL_Timer_GetElapsedUs(_t0);
         node->exec_count++;
     }
     
@@ -1606,6 +1639,7 @@ Status ONNX_Runtime_Inference(ONNX_InferenceContext* ctx,
             HAL_UART_PutString("\n");
             return status;
         }
+        THREAD_Yield();
     }
     
     /* Copy outputs */
