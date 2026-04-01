@@ -113,16 +113,54 @@ static void cmd_onnx_info(int argc, char *argv[])
 
 
 /**
- * @brief onnx_run <filename> [input_csv]
+ * @brief Helper to parse a float from string
+ */
+static float parse_float(const char* str, const char** endptr) {
+    float result = 0.0f;
+    float fraction = 0.0f;
+    int divisor = 1;
+    int sign = 1;
+    
+    // Skip whitespace
+    while (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r' || *str == ',') str++;
+    
+    if (*str == '-') {
+        sign = -1;
+        str++;
+    } else if (*str == '+') {
+        str++;
+    }
+    
+    // Integer part
+    while (*str >= '0' && *str <= '9') {
+        result = result * 10.0f + (*str - '0');
+        str++;
+    }
+    
+    // Fractional part
+    if (*str == '.') {
+        str++;
+        while (*str >= '0' && *str <= '9') {
+            fraction = fraction * 10.0f + (*str - '0');
+            divisor *= 10;
+            str++;
+        }
+    }
+    
+    if (endptr) *endptr = str;
+    return sign * (result + fraction / divisor);
+}
+
+/**
+ * @brief onnx_run <filename> [input_file]
  * 
- * Runs an ONNX model file. If no input provided, runs with all zeros.
- * For now, only supports models with 1 input and 1 output for simplicity, or 
- * uses default shapes for the demo models.
+ * Runs an ONNX model file. If no input_file provided, runs with all 1.0f.
+ * If input_file is provided, reads space/comma separated floats from it.
  */
 static void cmd_onnx_run(int argc, char *argv[])
 {
     if (argc < 2) {
-        HAL_UART_PutString("usage: onnx_run <model.onnx>\n");
+        HAL_UART_PutString("usage: onnx_run <model.onnx> [input_data.txt]\n");
         return;
     }
 
@@ -194,10 +232,62 @@ static void cmd_onnx_run(int argc, char *argv[])
         ONNX_Graph_AllocateTensor(&g_graph, input_tensor);
     }
     
-    /* Populate input data with 1.0f */
     float* dest = (float*)input_tensor->data;
-    for (uint32_t i = 0; i < input_tensor->shape.total_elements; i++) {
-        dest[i] = 1.0f;
+    uint32_t elements_loaded = 0;
+
+    /* Populate input data */
+    if (argc >= 3) {
+        /* Read from input file */
+        ulfs_stat_t in_st;
+        if (ULFS_Stat(argv[2], &in_st) == STATUS_OK && in_st.size > 0 && in_st.size < 65536) {
+            int in_fd;
+            if (ULFS_Open(argv[2], ULFS_O_RDONLY, &in_fd) == STATUS_OK) {
+                /* Use end of model buffer temporarily for input string parsing if space permits */
+                uint32_t max_read = MAX_MODEL_SIZE - bytes_read - 1;
+                if (in_st.size < max_read) {
+                    char* txt_buf = (char*)&g_model_buffer[bytes_read];
+                    uint32_t txt_read = 0;
+                    ULFS_Read(in_fd, (uint8_t*)txt_buf, in_st.size, &txt_read);
+                    txt_buf[txt_read] = '\0';
+                    
+                    const char* ptr = txt_buf;
+                    while (*ptr && elements_loaded < input_tensor->shape.total_elements) {
+                         while (*ptr == ' ' || *ptr == '\t' || *ptr == '\n' || *ptr == '\r' || *ptr == ',') ptr++;
+                         if (!*ptr) break;
+                         
+                         const char* next_ptr;
+                         dest[elements_loaded++] = parse_float(ptr, &next_ptr);
+                         if (ptr == next_ptr) break; /* parse failed */
+                         ptr = next_ptr;
+                    }
+                }
+                ULFS_Close(in_fd);
+            }
+        }
+        
+        if (elements_loaded < input_tensor->shape.total_elements) {
+            HAL_UART_PutString("onnx_run: Warning: input file provided too few elements (");
+            print_dec(elements_loaded);
+            HAL_UART_PutString("/");
+            print_dec(input_tensor->shape.total_elements);
+            HAL_UART_PutString("). Padding with 0.0f.\n");
+            
+            for (uint32_t i = elements_loaded; i < input_tensor->shape.total_elements; i++) {
+                dest[i] = 0.0f;
+            }
+        } else {
+            HAL_UART_PutString("onnx_run: Loaded ");
+            print_dec(elements_loaded);
+            HAL_UART_PutString(" inputs from ");
+            HAL_UART_PutString(argv[2]);
+            HAL_UART_PutString("\n");
+        }
+    } else {
+        /* Populate input data with 1.0f default */
+        for (uint32_t i = 0; i < input_tensor->shape.total_elements; i++) {
+            dest[i] = 1.0f;
+        }
+        HAL_UART_PutString("onnx_run: Using default input (all 1.0f)\n");
     }
 
     /* Schedule */
@@ -218,17 +308,37 @@ static void cmd_onnx_run(int argc, char *argv[])
                 c->shape.total_elements = c->shape.dims[0] * c->shape.dims[1];
             }
         }
-        else if ((node->op_type == ONNX_OP_ADD || node->op_type == ONNX_OP_SUB ||
-                  node->op_type == ONNX_OP_MUL || node->op_type == ONNX_OP_DIV) &&
-                 node->num_inputs >= 2 && node->num_outputs >= 1) {
+        else if (node->op_type == ONNX_OP_FLATTEN && node->num_inputs >= 1 && node->num_outputs >= 1) {
+            ONNX_Tensor* a = node->inputs[0];
+            ONNX_Tensor* c = node->outputs[0];
+            if (a->shape.ndim >= 2) {
+                c->shape.ndim = 2;
+                c->shape.dims[0] = a->shape.dims[0];
+                uint32_t flat = 1;
+                for (uint32_t d = 1; d < a->shape.ndim; d++) flat *= a->shape.dims[d];
+                c->shape.dims[1] = flat;
+                c->shape.total_elements = c->shape.dims[0] * c->shape.dims[1];
+            }
+        }
+        else if (node->num_inputs >= 1 && node->num_outputs >= 1 && 
+                 (node->op_type == ONNX_OP_RELU || node->op_type == ONNX_OP_SIGMOID || 
+                  node->op_type == ONNX_OP_TANH || node->op_type == ONNX_OP_SOFTMAX ||
+                  node->op_type == ONNX_OP_ABS || node->op_type == ONNX_OP_NEG ||
+                  node->op_type == ONNX_OP_EXP || node->op_type == ONNX_OP_LOG ||
+                  node->op_type == ONNX_OP_SQRT || node->op_type == ONNX_OP_CEIL ||
+                  node->op_type == ONNX_OP_FLOOR || node->op_type == ONNX_OP_SIN ||
+                  node->op_type == ONNX_OP_COS || node->op_type == ONNX_OP_IDENTITY ||
+                  node->op_type == ONNX_OP_CLIP || node->op_type == ONNX_OP_LEAKYRELU)) {
+            node->outputs[0]->shape = node->inputs[0]->shape;
+        }
+        else if (node->num_inputs >= 2 && node->num_outputs >= 1 && 
+                 (node->op_type == ONNX_OP_ADD || node->op_type == ONNX_OP_SUB ||
+                  node->op_type == ONNX_OP_MUL || node->op_type == ONNX_OP_DIV)) {
             ONNX_Tensor* a = node->inputs[0];
             ONNX_Tensor* b = node->inputs[1];
             ONNX_Tensor* c = node->outputs[0];
             ONNX_Tensor* larger = (a->shape.total_elements > b->shape.total_elements) ? a : b;
             c->shape = larger->shape;
-        }
-        else if (node->op_type == ONNX_OP_RELU && node->num_inputs >= 1 && node->num_outputs >= 1) {
-            node->outputs[0]->shape = node->inputs[0]->shape;
         }
     }
 

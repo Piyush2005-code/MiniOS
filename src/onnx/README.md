@@ -1015,7 +1015,7 @@ Status ONNX_LoadProtobuf(ONNX_Graph* graph,
 | Binary Size | ~25 KB | 50-100 MB |
 | Dependencies | 0 | C++ STL, Protobuf, OS |
 | Memory | 64 KB static | Dynamic (GBs) |
-| Operators | 3 working | 150+ |
+| Operators | 38 working | 150+ |
 | Data Types | 1 (float32) | 10+ |
 | Platforms | Bare-metal ARM64 | Any OS |
 | Use Case | Embedded/Edge | General purpose |
@@ -1033,19 +1033,20 @@ Part of MiniOS - ARM64 Bare-Metal Unikernel for ML Inference
 - ONNX model loading via protobuf parser
 - Computation graph construction and manipulation
 - Dependency-aware execution scheduling
-- Simple neural network inference (Linear layers with ReLU activation)
+- Support for 38 operators (including Conv, Pool, Math, Activations)
+- Broadcasting support for element-wise operations
 - Performance profiling and graph introspection
 - Zero-dependency bare-metal execution
 
-### Implementation Requirements
+### Future Enhancements
 
-The following components require implementation:
+The following features could be implemented in the future:
 
-- 15 additional operators (arithmetic, activations, convolution, pooling)
-- Broadcasting support for tensor operations
-- Attribute parsing for parameterized operators
-- Multi-dtype support beyond float32
+- Multi-dtype support beyond float32 (int8, int32)
 - SIMD optimizations for ARM64 NEON
+- Dynamic shape support and control flow
+- Quantization-aware inference
+- Operator fusion and graph optimizations
 
 ### Technical Characteristics
 
