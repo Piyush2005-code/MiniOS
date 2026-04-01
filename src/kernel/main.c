@@ -2,18 +2,29 @@
  * @file main.c
  * @brief MiniOS kernel entry point
  *
- * Initializes all hardware subsystems, memory management, scheduling,
- * and launches three threads: inference demo, ONNX demo, and monitor.
+ * This is the first C function called after boot.S sets up
+ * the stack and zeroes BSS. It initializes all hardware
+ * subsystems, the kernel memory manager, the GIC interrupt
+ * controller, the ARM Generic Timer, and the cooperative
+ * thread scheduler, then starts multithreaded execution.
+ *
+ * The timer fires periodic IRQs to wake sleeping threads.
+ * Thread switching is cooperative (explicit yield points).
  */
 
 #include "types.h"
 #include "status.h"
 #include "hal/uart.h"
 #include "hal/mmu.h"
+#include "hal/arch.h"
 #include "hal/gic.h"
 #include "hal/timer.h"
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
+#include "kernel/daemon.h"
+#include "kernel/ulfs.h"
+#include "kernel/fs_cmds.h"
+#include "kernel/storage.h"
 #include "onnx/onnx_loader_demo.h"
 #include "onnx/onnx_test.h"
 
@@ -107,13 +118,13 @@ const char* STATUS_ToString(Status status)
         case STATUS_ERROR_EXECUTION_TIMEOUT:    return "EXECUTION_TIMEOUT";
         case STATUS_ERROR_INVALID_GRAPH:        return "INVALID_GRAPH";
         case STATUS_ERROR_UNSUPPORTED_OPERATOR: return "UNSUPPORTED_OPERATOR";
-        case STATUS_ERROR_SHAPE_MISMATCH:       return "SHAPE_MISMATCH";
-        case STATUS_ERROR_COMM_FAILURE:         return "COMM_FAILURE";
-        case STATUS_ERROR_CRC_MISMATCH:         return "CRC_MISMATCH";
-        case STATUS_ERROR_THREAD_LIMIT:         return "THREAD_LIMIT";
-        case STATUS_ERROR_SCHEDULER_ACTIVE:     return "SCHEDULER_ACTIVE";
-        case STATUS_ERROR_POOL_EXHAUSTED:       return "POOL_EXHAUSTED";
-        default:                                return "UNKNOWN";
+        case STATUS_ERROR_SHAPE_MISMATCH:    return "SHAPE_MISMATCH";
+        case STATUS_ERROR_COMM_FAILURE:      return "COMM_FAILURE";
+        case STATUS_ERROR_CRC_MISMATCH:      return "CRC_MISMATCH";
+        case STATUS_ERROR_THREAD_LIMIT:      return "THREAD_LIMIT";
+        case STATUS_ERROR_SCHEDULER_ACTIVE:  return "SCHEDULER_ACTIVE";
+        case STATUS_ERROR_POOL_EXHAUSTED:    return "POOL_EXHAUSTED";
+        default:                             return "UNKNOWN";
     }
 }
 
@@ -126,13 +137,18 @@ void HAL_IRQ_Handler(void)
     uint32_t irq_id = iar & 0x3FF;
 
     if (irq_id == IRQ_TIMER_PHYS) {
+        /* Acknowledge and reload the timer */
         HAL_Timer_HandleIRQ();
+
+        /* Update scheduler: wake sleeping threads */
         SCHED_TimerTick();
     } else if (irq_id < 1020) {
+        /* Unexpected interrupt — log and continue */
         HAL_UART_PutString("[IRQ] Unhandled INTID ");
         HAL_UART_PutDec(irq_id);
         HAL_UART_PutString("\n");
     }
+    /* irq_id >= 1020: spurious — no EOI needed */
 
     if (irq_id < 1020) {
         HAL_GIC_EndOfInterrupt(iar);
@@ -157,17 +173,20 @@ static void inference_thread(void *arg)
         HAL_UART_PutString("/");
         HAL_UART_PutDec(iterations);
 
-        HAL_Timer_DelayUs(50000);   /* Simulate ~50 ms operator work */
+        /* Simulate operator work — busy-wait ~50 ms */
+        HAL_Timer_DelayUs(50000);
 
         uint64_t elapsed = HAL_Timer_GetElapsedUs(start);
         HAL_UART_PutString("  (");
         HAL_UART_PutDec((uint32_t)(elapsed / 1000));
         HAL_UART_PutString(" ms)\n");
 
+        /* Cooperative yield between operators */
         THREAD_Yield();
     }
 
     HAL_UART_PutString("[INFER] Inference complete\n");
+    /* Thread returns → trampoline calls THREAD_Exit */
 }
 
 /* ------------------------------------------------------------------ */
@@ -222,7 +241,7 @@ static void monitor_thread(void *arg)
         HAL_UART_PutString("ms\n");
 
         tick++;
-        THREAD_Sleep(100);   /* Sleep 100 ms */
+        THREAD_Sleep(100);   /* Sleep 100 ms, let others run */
     }
 
     HAL_UART_PutString("[MON  ] Monitor exiting\n");
@@ -245,10 +264,12 @@ void kernel_main(void)
     HAL_UART_PutString("  ML Inference with Multithreading\n");
     HAL_UART_PutString("======================================\n");
     HAL_UART_PutString("\n");
+
     HAL_UART_PutString("[BOOT] UART initialized: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
+    /* Report current exception level */
     uint32_t el = arch_get_el();
     HAL_UART_PutString("[BOOT] Running at EL");
     HAL_UART_PutDec(el);
@@ -276,7 +297,7 @@ void kernel_main(void)
     HAL_UART_PutDec((uint32_t)(KMEM_GetFreeSpace() / 1024));
     HAL_UART_PutString(" KB\n");
 
-    /* ---- Step 5: Initialize GIC ---- */
+    /* ---- Step 5: Initialize GIC (interrupt controller) ---- */
     HAL_UART_PutString("[BOOT] Initializing GIC...\n");
     status = HAL_GIC_Init();
     HAL_UART_PutString("[BOOT] GIC status: ");
@@ -286,7 +307,7 @@ void kernel_main(void)
     /* ---- Step 6: Initialize Timer ---- */
     HAL_UART_PutString("[BOOT] Initializing timer...\n");
     status = HAL_Timer_Init();
-    HAL_Timer_SetInterval(10000);   /* 10 ms tick */
+    HAL_Timer_SetInterval(10000);  /* 10 ms tick (100 Hz) */
     HAL_GIC_EnableIRQ(IRQ_TIMER_PHYS);
     HAL_GIC_SetPriority(IRQ_TIMER_PHYS, 0xA0);
     HAL_UART_PutString("[BOOT] Timer status: ");
@@ -317,7 +338,6 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT]   onnx     : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
-
     status = THREAD_Create(&t_mon, "monitor", monitor_thread,
                            NULL, THREAD_PRIORITY_LOW, 0);
     HAL_UART_PutString("[BOOT]   monitor  : ");
@@ -328,6 +348,32 @@ void kernel_main(void)
     status = THREAD_Create(&t_test, "test", test_thread,
                            NULL, THREAD_PRIORITY_NORMAL, 0);
     HAL_UART_PutString("[BOOT]   test     : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8b: Register background daemons ---- */
+    status = DAEMON_RegisterAll();
+    HAL_UART_PutString("[BOOT] Daemons  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8c: Initialize ULFS file system ---- */
+    HAL_UART_PutString("[BOOT] Initializing ULFS file system...\n");
+    status = ULFS_Init();
+    HAL_UART_PutString("[BOOT] ULFS status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8d: Register file system shell commands ---- */
+    status = FS_RegisterCommands();
+    HAL_UART_PutString("[BOOT] FS cmds  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8e: Initialize NVRAM storage ---- */
+    HAL_UART_PutString("[BOOT] Initializing NVRAM storage...\n");
+    status = STORAGE_Init();
+    HAL_UART_PutString("[BOOT] NVRAM status: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
