@@ -27,6 +27,7 @@
 #include "kernel/storage.h"
 #include "onnx/onnx_loader_demo.h"
 #include "onnx/onnx_test.h"
+#include "onnx/onnx_cmds.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols                                                   */
@@ -41,18 +42,6 @@ static inline void install_vectors(void)
     uint64_t vbar = (uint64_t)(uintptr_t)&_vector_table;
     __asm__ volatile("msr vbar_el1, %0" :: "r"(vbar));
     __asm__ volatile("isb");
-}
-
-static inline uint32_t arch_get_el(void)
-{
-    uint64_t el;
-    __asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
-    return (uint32_t)((el >> 2) & 0x3);
-}
-
-static inline void arch_enable_irq(void)
-{
-    __asm__ volatile("msr daifclr, #2");
 }
 
 /* ------------------------------------------------------------------ */
@@ -367,6 +356,12 @@ void kernel_main(void)
     /* ---- Step 8d: Register file system shell commands ---- */
     status = FS_RegisterCommands();
     HAL_UART_PutString("[BOOT] FS cmds  : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8e: Register ONNX shell commands ---- */
+    status = ONNX_RegisterCommands();
+    HAL_UART_PutString("[BOOT] ONNX cmds: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 
