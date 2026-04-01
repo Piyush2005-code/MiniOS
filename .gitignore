@@ -11,3 +11,6 @@ daemon_design.md
 implementation_plan.md
 implementation_plan_flash_img.md
 implementation_plan_mv_cp.md
+
+check_minios.sh
+minios_code.txt
