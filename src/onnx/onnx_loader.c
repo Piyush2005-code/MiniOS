@@ -625,11 +625,65 @@ static Status proto_parse_graph(ProtoReader* reader, uint64_t graph_msg_len, ONN
             uint64_t len = proto_read_varint(reader);
             uint64_t vinfo_end = reader->pos + len;
             char name[ONNX_MAX_NAME_LEN] = {0};
+            uint64_t dims[ONNX_MAX_DIMS] = {0};
+            uint32_t ndim = 0;
             while (reader->pos < vinfo_end && reader->pos < reader->size) {
                 ProtoWireType wtype;
                 uint32_t vfield = proto_read_tag(reader, &wtype);
                 if (vfield == 1) { /* name */
                     proto_read_string(reader, name, sizeof(name));
+                } else if (vfield == 2) { /* type -> tensor_type */
+                    if (wtype == WIRE_LENGTH_DELIMITED) {
+                        /* Level 1: TypeProto message */
+                        uint64_t type_len = proto_read_varint(reader);
+                        uint64_t type_end = reader->pos + type_len;
+                        while (reader->pos < type_end && reader->pos < reader->size) {
+                            ProtoWireType l2_wtype;
+                            uint32_t l2_field = proto_read_tag(reader, &l2_wtype);
+                            if (l2_field == 1 && l2_wtype == WIRE_LENGTH_DELIMITED) {
+                                /* Level 2: TypeProto.Tensor message */
+                                uint64_t tensor_len = proto_read_varint(reader);
+                                uint64_t tensor_end = reader->pos + tensor_len;
+                                while (reader->pos < tensor_end && reader->pos < reader->size) {
+                                    ProtoWireType l3_wtype;
+                                    uint32_t l3_field = proto_read_tag(reader, &l3_wtype);
+                                    if (l3_field == 2 && l3_wtype == WIRE_LENGTH_DELIMITED) {
+                                        /* Level 3: TensorShapeProto message */
+                                        uint64_t shape_len = proto_read_varint(reader);
+                                        uint64_t shape_end = reader->pos + shape_len;
+                                        while (reader->pos < shape_end && reader->pos < reader->size) {
+                                            ProtoWireType l4_wtype;
+                                            uint32_t l4_field = proto_read_tag(reader, &l4_wtype);
+                                            if (l4_field == 1 && l4_wtype == WIRE_LENGTH_DELIMITED) {
+                                                /* Level 4: TensorShapeProto.Dimension message */
+                                                uint64_t dim_len = proto_read_varint(reader);
+                                                uint64_t dim_end = reader->pos + dim_len;
+                                                while (reader->pos < dim_end && reader->pos < reader->size) {
+                                                    ProtoWireType l5_wtype;
+                                                    uint32_t l5_field = proto_read_tag(reader, &l5_wtype);
+                                                    if (l5_field == 1 && l5_wtype == WIRE_VARINT) {
+                                                        /* dim_value */
+                                                        uint64_t val = proto_read_varint(reader);
+                                                        if (ndim < ONNX_MAX_DIMS) dims[ndim++] = val;
+                                                    } else {
+                                                        proto_skip_field(reader, l5_wtype);
+                                                    }
+                                                }
+                                            } else {
+                                                proto_skip_field(reader, l4_wtype);
+                                            }
+                                        }
+                                    } else {
+                                        proto_skip_field(reader, l3_wtype);
+                                    }
+                                }
+                            } else {
+                                proto_skip_field(reader, l2_wtype);
+                            }
+                        }
+                    } else {
+                        proto_skip_field(reader, wtype);
+                    }
                 } else {
                     proto_skip_field(reader, wtype);
                 }
@@ -637,11 +691,38 @@ static Status proto_parse_graph(ProtoReader* reader, uint64_t graph_msg_len, ONN
             if (name[0] != '\0' && graph->num_inputs < ONNX_MAX_INPUTS) {
                 ONNX_Tensor* t = ONNX_Graph_FindTensor(graph, name);
                 if (!t) {
-                     ONNX_TensorShape shape = {0};
-                     t = ONNX_Graph_CreateTensor(graph, name, ONNX_DTYPE_FLOAT32, &shape);
+                    /* Create tensor with shape from ValueInfo */
+                    ONNX_TensorShape shape = {0};
+                    shape.ndim = ndim;
+                    uint64_t total = (ndim > 0) ? 1 : 0;
+                    for (uint32_t i = 0; i < ndim; i++) {
+                        shape.dims[i] = dims[i];
+                        total *= dims[i];
+                    }
+                    shape.total_elements = total;
+                    t = ONNX_Graph_CreateTensor(graph, name, ONNX_DTYPE_FLOAT32, &shape);
+                } else {
+                    /* Update existing tensor's shape and data_size from ValueInfo */
+                    t->shape.ndim = ndim;
+                    uint64_t total = (ndim > 0) ? 1 : 0;
+                    for (uint32_t i = 0; i < ndim; i++) {
+                        t->shape.dims[i] = dims[i];
+                        total *= dims[i];
+                    }
+                    t->shape.total_elements = total;
+                    t->data_size = total * ONNX_GetDataTypeSize(t->dtype);
                 }
                 if (t) {
-                    graph->inputs[graph->num_inputs++] = t;
+                    bool already_exists = false;
+                    for (uint32_t i = 0; i < graph->num_inputs; i++) {
+                        if (graph->inputs[i] == t) {
+                            already_exists = true;
+                            break;
+                        }
+                    }
+                    if (!already_exists) {
+                        graph->inputs[graph->num_inputs++] = t;
+                    }
                 }
             }
             reader->pos = vinfo_end;
@@ -650,11 +731,65 @@ static Status proto_parse_graph(ProtoReader* reader, uint64_t graph_msg_len, ONN
             uint64_t len = proto_read_varint(reader);
             uint64_t vinfo_end = reader->pos + len;
             char name[ONNX_MAX_NAME_LEN] = {0};
+            uint64_t dims[ONNX_MAX_DIMS] = {0};
+            uint32_t ndim = 0;
             while (reader->pos < vinfo_end && reader->pos < reader->size) {
                 ProtoWireType wtype;
                 uint32_t vfield = proto_read_tag(reader, &wtype);
                 if (vfield == 1) { /* name */
                     proto_read_string(reader, name, sizeof(name));
+                } else if (vfield == 2) { /* type -> tensor_type */
+                    if (wtype == WIRE_LENGTH_DELIMITED) {
+                        /* Level 1: TypeProto message */
+                        uint64_t type_len = proto_read_varint(reader);
+                        uint64_t type_end = reader->pos + type_len;
+                        while (reader->pos < type_end && reader->pos < reader->size) {
+                            ProtoWireType l2_wtype;
+                            uint32_t l2_field = proto_read_tag(reader, &l2_wtype);
+                            if (l2_field == 1 && l2_wtype == WIRE_LENGTH_DELIMITED) {
+                                /* Level 2: TypeProto.Tensor message */
+                                uint64_t tensor_len = proto_read_varint(reader);
+                                uint64_t tensor_end = reader->pos + tensor_len;
+                                while (reader->pos < tensor_end && reader->pos < reader->size) {
+                                    ProtoWireType l3_wtype;
+                                    uint32_t l3_field = proto_read_tag(reader, &l3_wtype);
+                                    if (l3_field == 2 && l3_wtype == WIRE_LENGTH_DELIMITED) {
+                                        /* Level 3: TensorShapeProto message */
+                                        uint64_t shape_len = proto_read_varint(reader);
+                                        uint64_t shape_end = reader->pos + shape_len;
+                                        while (reader->pos < shape_end && reader->pos < reader->size) {
+                                            ProtoWireType l4_wtype;
+                                            uint32_t l4_field = proto_read_tag(reader, &l4_wtype);
+                                            if (l4_field == 1 && l4_wtype == WIRE_LENGTH_DELIMITED) {
+                                                /* Level 4: TensorShapeProto.Dimension message */
+                                                uint64_t dim_len = proto_read_varint(reader);
+                                                uint64_t dim_end = reader->pos + dim_len;
+                                                while (reader->pos < dim_end && reader->pos < reader->size) {
+                                                    ProtoWireType l5_wtype;
+                                                    uint32_t l5_field = proto_read_tag(reader, &l5_wtype);
+                                                    if (l5_field == 1 && l5_wtype == WIRE_VARINT) {
+                                                        /* dim_value */
+                                                        uint64_t val = proto_read_varint(reader);
+                                                        if (ndim < ONNX_MAX_DIMS) dims[ndim++] = val;
+                                                    } else {
+                                                        proto_skip_field(reader, l5_wtype);
+                                                    }
+                                                }
+                                            } else {
+                                                proto_skip_field(reader, l4_wtype);
+                                            }
+                                        }
+                                    } else {
+                                        proto_skip_field(reader, l3_wtype);
+                                    }
+                                }
+                            } else {
+                                proto_skip_field(reader, l2_wtype);
+                            }
+                        }
+                    } else {
+                        proto_skip_field(reader, wtype);
+                    }
                 } else {
                     proto_skip_field(reader, wtype);
                 }
@@ -662,11 +797,38 @@ static Status proto_parse_graph(ProtoReader* reader, uint64_t graph_msg_len, ONN
             if (name[0] != '\0' && graph->num_outputs < ONNX_MAX_OUTPUTS) {
                 ONNX_Tensor* t = ONNX_Graph_FindTensor(graph, name);
                 if (!t) {
-                     ONNX_TensorShape shape = {0};
-                     t = ONNX_Graph_CreateTensor(graph, name, ONNX_DTYPE_FLOAT32, &shape);
+                    /* Create tensor with shape from ValueInfo */
+                    ONNX_TensorShape shape = {0};
+                    shape.ndim = ndim;
+                    uint64_t total = (ndim > 0) ? 1 : 0;
+                    for (uint32_t i = 0; i < ndim; i++) {
+                        shape.dims[i] = dims[i];
+                        total *= dims[i];
+                    }
+                    shape.total_elements = total;
+                    t = ONNX_Graph_CreateTensor(graph, name, ONNX_DTYPE_FLOAT32, &shape);
+                } else {
+                    /* Update existing tensor's shape and data_size from ValueInfo */
+                    t->shape.ndim = ndim;
+                    uint64_t total = (ndim > 0) ? 1 : 0;
+                    for (uint32_t i = 0; i < ndim; i++) {
+                        t->shape.dims[i] = dims[i];
+                        total *= dims[i];
+                    }
+                    t->shape.total_elements = total;
+                    t->data_size = total * ONNX_GetDataTypeSize(t->dtype);
                 }
                 if (t) {
-                    graph->outputs[graph->num_outputs++] = t;
+                    bool already_exists = false;
+                    for (uint32_t i = 0; i < graph->num_outputs; i++) {
+                        if (graph->outputs[i] == t) {
+                            already_exists = true;
+                            break;
+                        }
+                    }
+                    if (!already_exists) {
+                        graph->outputs[graph->num_outputs++] = t;
+                    }
                 }
             }
             reader->pos = vinfo_end;
