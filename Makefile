@@ -52,9 +52,16 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
            $(SRC_DIR)/hal/gic.c \
            $(SRC_DIR)/hal/timer.c \
+           $(SRC_DIR)/hal/flash.c \
            $(SRC_DIR)/lib/string.c \
            $(SRC_DIR)/kernel/kmem.c \
            $(SRC_DIR)/kernel/thread.c \
+           $(SRC_DIR)/kernel/daemon.c \
+           $(SRC_DIR)/kernel/ulfs.c \
+           $(SRC_DIR)/kernel/fs_cmds.c \
+           $(SRC_DIR)/kernel/cmd.c \
+           $(SRC_DIR)/kernel/shell.c \
+           $(SRC_DIR)/kernel/storage.c \
            $(SRC_DIR)/kernel/main.c \
            $(SRC_DIR)/onnx/onnx_types.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
@@ -79,7 +86,8 @@ QEMU_FLAGS = -machine virt \
              -cpu cortex-a53 \
              -m 512M \
              -nographic \
-             -kernel $(TARGET_ELF)
+             -kernel $(TARGET_ELF) \
+             -drive if=pflash,file=flash.img,format=raw,index=1
 
 # ============================================================================
 # Targets
@@ -116,14 +124,18 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # ---- Run in QEMU ----
-run: $(TARGET_ELF)
+run: $(TARGET_ELF) flash.img
 	@echo ""
 	@echo "=== Starting QEMU ==="
 	@echo "    Press Ctrl+A then X to exit"
 	@echo ""
 	@bash scripts/run.sh
 
-# ---- Debug ----
+flash.img:
+	@echo "Creating empty 64MB flash.img..."
+	@dd if=/dev/zero of=flash.img bs=1M count=64
+
+# ---- Debug with GDB ----
 debug: $(TARGET_ELF)
 	@echo "[QEMU] Starting with GDB server on :1234..."
 	@$(QEMU) $(QEMU_FLAGS) -S -gdb tcp::1234

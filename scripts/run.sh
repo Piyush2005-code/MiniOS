@@ -16,7 +16,12 @@ if [ ! -f "$KERNEL" ]; then
     exit 1
 fi
 
-QEMU_FLAGS="-machine virt -cpu cortex-a53 -m 512M -nographic -kernel /workspace/build/kernel.elf"
+if [ ! -f "$PROJECT_DIR/flash.img" ]; then
+    echo "Creating empty 64MB flash.img..."
+    dd if=/dev/zero of="$PROJECT_DIR/flash.img" bs=1M count=64
+fi
+
+QEMU_FLAGS="-machine virt -cpu cortex-a53 -m 512M -nographic -kernel /workspace/build/kernel.elf -drive if=pflash,file=/workspace/flash.img,format=raw,index=1"
 
 # Check if qemu-system-aarch64 is available natively
 if command -v qemu-system-aarch64 &> /dev/null; then
