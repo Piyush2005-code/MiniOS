@@ -184,13 +184,15 @@ Status ONNX_Execute_Add(ONNX_Node* node, ONNX_InferenceContext* ctx)
         return STATUS_ERROR_NOT_SUPPORTED;
     }
     
-    uint64_t n = a->shape.total_elements;
+    uint64_t a_n = a->shape.total_elements;
+    uint64_t b_n = b->shape.total_elements;
+    uint64_t n = (a_n > b_n) ? a_n : b_n;
     float* a_data = (float*)a->data;
     float* b_data = (float*)b->data;
     float* out_data = (float*)out->data;
     
     for (uint64_t i = 0; i < n; i++) {
-        out_data[i] = a_data[i] + b_data[i];
+        out_data[i] = a_data[i % a_n] + b_data[i % b_n];
     }
     
     return STATUS_OK;
@@ -212,13 +214,15 @@ Status ONNX_Execute_Sub(ONNX_Node* node, ONNX_InferenceContext* ctx)
         return STATUS_ERROR_NOT_SUPPORTED;
     }
 
-    uint64_t n = a->shape.total_elements;
+    uint64_t a_n = a->shape.total_elements;
+    uint64_t b_n = b->shape.total_elements;
+    uint64_t n = (a_n > b_n) ? a_n : b_n;
     float* a_data = (float*)a->data;
     float* b_data = (float*)b->data;
     float* out_data = (float*)out->data;
 
     for (uint64_t i = 0; i < n; i++) {
-        out_data[i] = a_data[i] - b_data[i];
+        out_data[i] = a_data[i % a_n] - b_data[i % b_n];
     }
 
     return STATUS_OK;
@@ -240,13 +244,15 @@ Status ONNX_Execute_Mul(ONNX_Node* node, ONNX_InferenceContext* ctx)
         return STATUS_ERROR_NOT_SUPPORTED;
     }
 
-    uint64_t n = a->shape.total_elements;
+    uint64_t a_n = a->shape.total_elements;
+    uint64_t b_n = b->shape.total_elements;
+    uint64_t n = (a_n > b_n) ? a_n : b_n;
     float* a_data = (float*)a->data;
     float* b_data = (float*)b->data;
     float* out_data = (float*)out->data;
 
     for (uint64_t i = 0; i < n; i++) {
-        out_data[i] = a_data[i] * b_data[i];
+        out_data[i] = a_data[i % a_n] * b_data[i % b_n];
     }
 
     return STATUS_OK;
@@ -268,14 +274,16 @@ Status ONNX_Execute_Div(ONNX_Node* node, ONNX_InferenceContext* ctx)
         return STATUS_ERROR_NOT_SUPPORTED;
     }
 
-    uint64_t n = a->shape.total_elements;
+    uint64_t a_n = a->shape.total_elements;
+    uint64_t b_n = b->shape.total_elements;
+    uint64_t n = (a_n > b_n) ? a_n : b_n;
     float* a_data = (float*)a->data;
     float* b_data = (float*)b->data;
     float* out_data = (float*)out->data;
 
     for (uint64_t i = 0; i < n; i++) {
-        /* Avoid division by zero strictly, though floats handle it */
-        out_data[i] = (b_data[i] != 0.0f) ? (a_data[i] / b_data[i]) : 0.0f;
+        float bv = b_data[i % b_n];
+        out_data[i] = (bv != 0.0f) ? (a_data[i % a_n] / bv) : 0.0f;
     }
 
     return STATUS_OK;
@@ -1631,6 +1639,30 @@ Status ONNX_Runtime_Inference(ONNX_InferenceContext* ctx,
         HAL_UART_PutString(" (");
         HAL_UART_PutString(ONNX_GetOperatorName(node->op_type));
         HAL_UART_PutString(")\n");
+        
+        /* Allocate output tensors for this node if not yet allocated.
+         * This handles intermediate tensors that are neither graph inputs
+         * (allocated by the caller) nor initializers (pre-populated by loader).
+         * Also infer shape from the first non-init input if the output is still
+         * a placeholder with total_elements <= 1. */
+        for (uint32_t j = 0; j < node->num_outputs; j++) {
+            ONNX_Tensor* out_t = node->outputs[j];
+            if (!out_t) continue;
+            /* Infer shape from first non-initializer input if still a placeholder */
+            if (out_t->shape.total_elements <= 1 && node->num_inputs > 0) {
+                for (uint32_t k = 0; k < node->num_inputs; k++) {
+                    ONNX_Tensor* in_t = node->inputs[k];
+                    if (in_t && !in_t->is_initializer && in_t->shape.total_elements > 1) {
+                        out_t->shape = in_t->shape;
+                        out_t->data_size = in_t->data_size;
+                        break;
+                    }
+                }
+            }
+            if (out_t->data == NULL && out_t->data_size > 0) {
+                ONNX_Graph_AllocateTensor(graph, out_t);
+            }
+        }
         
         Status status = ONNX_Runtime_ExecuteNode(ctx, node);
         if (status != STATUS_OK) {
