@@ -16,6 +16,7 @@
 #include "kernel/kmem.h"
 #include "hal/uart.h"
 #include "hal/timer.h"
+#include "kernel/thread.h"
 #include "lib/string.h"
 
 extern unsigned char simple_add_onnx[];
@@ -549,17 +550,293 @@ static void cmd_onnx_unpack(int argc, char *argv[])
     }
 }
 
+
+/* =========================================================================
+ * onnx_bench [model.onnx] ...
+ *
+ * Benchmarks one or more ONNX models and prints a comparison table.
+ * No arguments = benchmark all known /storage models automatically.
+ * =========================================================================*/
+#define BENCH_MAX_MODELS 16
+
+typedef struct {
+    char     name[64];
+    uint32_t file_bytes;
+    uint32_t num_nodes;
+    uint32_t num_tensors;
+    uint64_t param_count;
+    uint64_t peak_mem_kb;
+    uint64_t latency_us;
+    bool     ok;
+} BenchResult;
+
+static void bench_dec_w(uint64_t v, uint32_t width)
+{
+    char buf[20]; uint32_t len = 0;
+    if (v == 0) { buf[len++] = '0'; }
+    else {
+        uint64_t tmp = v;
+        while (tmp > 0) { buf[len++] = (char)('0'+(tmp%10)); tmp /= 10; }
+        for (uint32_t l=0,r=len-1; l<r; l++,r--) { char c=buf[l]; buf[l]=buf[r]; buf[r]=c; }
+    }
+    for (uint32_t i=len; i<width; i++) HAL_UART_PutString(" ");
+    buf[len]='\0'; HAL_UART_PutString(buf);
+}
+
+static void bench_print_params(uint64_t p)
+{
+    if (p>=1000000ULL){
+        bench_dec_w(p/1000000,3); HAL_UART_PutString(".");
+        HAL_UART_PutDec((uint32_t)((p%1000000)/100000)); HAL_UART_PutString(" M");
+    } else if (p>=1000ULL){
+        bench_dec_w(p/1000,3); HAL_UART_PutString(".");
+        HAL_UART_PutDec((uint32_t)((p%1000)/100)); HAL_UART_PutString(" K");
+    } else { bench_dec_w(p,5); HAL_UART_PutString("  "); }
+}
+
+static void bench_print_latency(uint64_t us)
+{
+    if (us>=1000){
+        bench_dec_w(us/1000,6); HAL_UART_PutString(".");
+        HAL_UART_PutDec((uint32_t)((us%1000)/100)); HAL_UART_PutString(" ms");
+    } else { bench_dec_w(us,6); HAL_UART_PutString(" us"); }
+}
+
+static void bench_print_mem(uint64_t kb)
+{
+    if (kb>=1024){
+        bench_dec_w(kb/1024,4); HAL_UART_PutString(".");
+        HAL_UART_PutDec((uint32_t)((kb%1024)*10/1024)); HAL_UART_PutString(" MB");
+    } else { bench_dec_w(kb,6); HAL_UART_PutString(" KB"); }
+}
+
+static void bench_print_name(const char* s)
+{
+    uint32_t i=0;
+    while (s[i]&&i<28){ HAL_UART_PutChar(s[i]); i++; }
+    for (;i<28;i++) HAL_UART_PutString(" ");
+}
+
+static void bench_propagate(void)
+{
+    for (uint32_t i=0;i<g_graph.schedule_length;i++){
+        ONNX_Node* nd=g_graph.exec_schedule[i];
+        if (nd->op_type==ONNX_OP_CONV&&nd->num_inputs>=2&&nd->num_outputs>=1){
+            ONNX_Tensor *x=nd->inputs[0],*w=nd->inputs[1],*y=nd->outputs[0];
+            if (x->shape.ndim==4&&w->shape.ndim==4){
+                uint64_t hi=x->shape.dims[2],wi2=x->shape.dims[3];
+                uint64_t kh=nd->attributes.kernel_shape_len>=1?(uint64_t)nd->attributes.kernel_shape[0]:w->shape.dims[2];
+                uint64_t kw=nd->attributes.kernel_shape_len>=2?(uint64_t)nd->attributes.kernel_shape[1]:w->shape.dims[3];
+                uint64_t sh=nd->attributes.strides_len>=1?(uint64_t)nd->attributes.strides[0]:1;
+                uint64_t sw=nd->attributes.strides_len>=2?(uint64_t)nd->attributes.strides[1]:sh;
+                uint64_t ph=nd->attributes.pads_len>=1?(uint64_t)nd->attributes.pads[0]:0;
+                uint64_t pw=nd->attributes.pads_len>=2?(uint64_t)nd->attributes.pads[1]:0;
+                y->shape.ndim=4;
+                y->shape.dims[0]=x->shape.dims[0]; y->shape.dims[1]=w->shape.dims[0];
+                y->shape.dims[2]=(hi+2*ph-kh)/sh+1; y->shape.dims[3]=(wi2+2*pw-kw)/sw+1;
+                y->shape.total_elements=y->shape.dims[0]*y->shape.dims[1]*y->shape.dims[2]*y->shape.dims[3];
+            }
+        } else if ((nd->op_type==ONNX_OP_MAXPOOL||nd->op_type==ONNX_OP_AVGPOOL)&&nd->num_inputs>=1&&nd->num_outputs>=1){
+            ONNX_Tensor *x=nd->inputs[0],*y=nd->outputs[0];
+            if (x->shape.ndim==4){
+                uint64_t hi=x->shape.dims[2],wi2=x->shape.dims[3];
+                uint64_t kh=nd->attributes.kernel_shape_len>=1?(uint64_t)nd->attributes.kernel_shape[0]:2;
+                uint64_t kw=nd->attributes.kernel_shape_len>=2?(uint64_t)nd->attributes.kernel_shape[1]:2;
+                uint64_t sh=nd->attributes.strides_len>=1?(uint64_t)nd->attributes.strides[0]:2;
+                uint64_t sw=nd->attributes.strides_len>=2?(uint64_t)nd->attributes.strides[1]:sh;
+                uint64_t ph=nd->attributes.pads_len>=1?(uint64_t)nd->attributes.pads[0]:0;
+                uint64_t pw=nd->attributes.pads_len>=2?(uint64_t)nd->attributes.pads[1]:0;
+                y->shape.ndim=4;
+                y->shape.dims[0]=x->shape.dims[0]; y->shape.dims[1]=x->shape.dims[1];
+                y->shape.dims[2]=(hi+2*ph-kh)/sh+1; y->shape.dims[3]=(wi2+2*pw-kw)/sw+1;
+                y->shape.total_elements=y->shape.dims[0]*y->shape.dims[1]*y->shape.dims[2]*y->shape.dims[3];
+            }
+        } else if (nd->op_type==ONNX_OP_GLOBALAVERAGEPOOL&&nd->num_inputs>=1&&nd->num_outputs>=1){
+            ONNX_Tensor *x=nd->inputs[0],*y=nd->outputs[0];
+            if (x->shape.ndim>=2){
+                y->shape.ndim=x->shape.ndim;
+                y->shape.dims[0]=x->shape.dims[0]; y->shape.dims[1]=x->shape.dims[1];
+                for (uint32_t d=2;d<x->shape.ndim;d++) y->shape.dims[d]=1;
+                y->shape.total_elements=y->shape.dims[0]*y->shape.dims[1];
+            }
+        } else if (nd->op_type==ONNX_OP_GEMM&&nd->num_inputs>=2&&nd->num_outputs>=1){
+            ONNX_Tensor *a=nd->inputs[0],*b=nd->inputs[1],*c=nd->outputs[0];
+            if (a->shape.ndim>=2&&b->shape.ndim>=2){
+                uint64_t K=a->shape.dims[1];
+                bool tB=(b->shape.dims[0]!=K);
+                uint64_t N=tB?b->shape.dims[0]:b->shape.dims[1];
+                c->shape.ndim=2; c->shape.dims[0]=a->shape.dims[0]; c->shape.dims[1]=N;
+                c->shape.total_elements=c->shape.dims[0]*N;
+            }
+        } else if (nd->op_type==ONNX_OP_FLATTEN&&nd->num_inputs>=1&&nd->num_outputs>=1){
+            ONNX_Tensor *a=nd->inputs[0],*c=nd->outputs[0];
+            if (a->shape.ndim>=2){
+                int ax=(int)nd->attributes.axis; if (ax<=0) ax=1;
+                if ((uint32_t)ax>a->shape.ndim) ax=(int)a->shape.ndim;
+                uint64_t d1=1,d2=1;
+                for (int d=0;d<ax;d++) d1*=a->shape.dims[d];
+                for (uint32_t d=(uint32_t)ax;d<a->shape.ndim;d++) d2*=a->shape.dims[d];
+                c->shape.ndim=2; c->shape.dims[0]=d1; c->shape.dims[1]=d2;
+                c->shape.total_elements=d1*d2;
+            }
+        } else if (nd->op_type==ONNX_OP_LRN&&nd->num_inputs>=1&&nd->num_outputs>=1){
+            nd->outputs[0]->shape=nd->inputs[0]->shape;
+        } else if (nd->num_inputs>=1&&nd->num_outputs>=1&&
+                   (nd->op_type==ONNX_OP_RELU||nd->op_type==ONNX_OP_SIGMOID||
+                    nd->op_type==ONNX_OP_TANH||nd->op_type==ONNX_OP_SOFTMAX||
+                    nd->op_type==ONNX_OP_LEAKYRELU||nd->op_type==ONNX_OP_IDENTITY||
+                    nd->op_type==ONNX_OP_ABS||nd->op_type==ONNX_OP_NEG||nd->op_type==ONNX_OP_CLIP)){
+            nd->outputs[0]->shape=nd->inputs[0]->shape;
+        } else if (nd->num_inputs>=2&&nd->num_outputs>=1&&
+                   (nd->op_type==ONNX_OP_ADD||nd->op_type==ONNX_OP_MUL||
+                    nd->op_type==ONNX_OP_SUB||nd->op_type==ONNX_OP_DIV)){
+            ONNX_Tensor *a=nd->inputs[0],*b=nd->inputs[1],*c=nd->outputs[0];
+            c->shape=(a->shape.total_elements>b->shape.total_elements)?a->shape:b->shape;
+        }
+    }
+}
+
+static void bench_one(const char* path, BenchResult* res)
+{
+    const char* base=path;
+    for (const char* p=path;*p;p++) if(*p=='/') base=p+1;
+    uint32_t ni=0;
+    while (base[ni]&&ni<63){res->name[ni]=base[ni];ni++;} res->name[ni]='\0'; res->ok=false;
+
+    ulfs_stat_t st;
+    if (ULFS_Stat(path,&st)!=STATUS_OK||st.size==0||st.size>MAX_MODEL_SIZE){
+        HAL_UART_PutString("    [SKIP] ");HAL_UART_PutString(res->name);
+        HAL_UART_PutString(" (not found / too large)\n");return;}
+    res->file_bytes=(uint32_t)st.size;
+
+    int fd;
+    if (ULFS_Open(path,ULFS_O_RDONLY,&fd)!=STATUS_OK){
+        HAL_UART_PutString("    [SKIP] ");HAL_UART_PutString(res->name);
+        HAL_UART_PutString(" (open failed)\n");return;}
+    uint32_t bytes_read=0;
+    Status rs=ULFS_Read(fd,g_model_buffer,st.size,&bytes_read);
+    ULFS_Close(fd);
+    if (rs!=STATUS_OK||bytes_read!=st.size){
+        HAL_UART_PutString("    [SKIP] ");HAL_UART_PutString(res->name);
+        HAL_UART_PutString(" (read error)\n");return;}
+
+    if (g_tensor_arena){ KMEM_ArenaReset(g_tensor_arena); }
+    g_tensor_arena=KMEM_ArenaCreate(MAX_ARENA_SIZE);
+    if (!g_tensor_arena){
+        HAL_UART_PutString("    [SKIP] ");HAL_UART_PutString(res->name);
+        HAL_UART_PutString(" (arena alloc failed)\n");return;}
+
+    ONNX_Graph_Init(&g_graph,res->name);
+    g_graph.tensor_arena=g_tensor_arena;
+    Status s=ONNX_LoadEmbedded(&g_graph,g_model_buffer,bytes_read,ONNX_FORMAT_PROTOBUF);
+    if (s!=STATUS_OK){
+        HAL_UART_PutString("    [FAIL] ");HAL_UART_PutString(res->name);
+        HAL_UART_PutString(" (parse error)\n");ONNX_Graph_Cleanup(&g_graph);return;}
+
+    res->num_nodes=g_graph.num_nodes; res->num_tensors=g_graph.num_tensors;
+    res->param_count=0;
+    for (uint32_t i=0;i<g_graph.num_initializers;i++)
+        if (g_graph.initializers[i]) res->param_count+=g_graph.initializers[i]->shape.total_elements;
+
+    ONNX_Graph_BuildDependencies(&g_graph);
+    ONNX_Graph_GenerateSchedule(&g_graph);
+    bench_propagate();
+
+    if (g_graph.num_inputs>0){
+        ONNX_Tensor* inp=g_graph.inputs[0];
+        if (inp->shape.total_elements==0){
+            inp->shape.ndim=4;inp->shape.dims[0]=1;inp->shape.dims[1]=3;
+            inp->shape.dims[2]=32;inp->shape.dims[3]=32;inp->shape.total_elements=3072;}
+        ONNX_DataType dt=inp->dtype?inp->dtype:ONNX_DTYPE_FLOAT32;
+        inp->data_size=inp->shape.total_elements*ONNX_GetDataTypeSize(dt);
+        if (!inp->data&&inp->data_size>0) ONNX_Graph_AllocateTensor(&g_graph,inp);
+    }
+    for (uint32_t i=0;i<g_graph.num_tensors;i++){
+        ONNX_Tensor* t=&g_graph.tensors[i];
+        if (!t->is_initializer&&!t->data&&t->data_size>0) ONNX_Graph_AllocateTensor(&g_graph,t);
+    }
+
+    ONNX_InferenceContext ctx;
+    ctx.graph=&g_graph;ctx.workspace=NULL;ctx.workspace_size=0;
+    ctx.total_inferences=0;ctx.total_time_us=0;
+
+    ONNX_Tensor *out_ptrs[ONNX_MAX_OUTPUTS],*in_ptrs[ONNX_MAX_INPUTS];
+    uint32_t n_in=g_graph.num_inputs<ONNX_MAX_INPUTS?g_graph.num_inputs:ONNX_MAX_INPUTS;
+    for (uint32_t i=0;i<n_in;i++) in_ptrs[i]=g_graph.inputs[i];
+
+    ONNX_Runtime_Inference(&ctx,in_ptrs,n_in,out_ptrs,g_graph.num_outputs);  /* warmup */
+    uint64_t t0=HAL_Timer_GetTicks();
+    s=ONNX_Runtime_Inference(&ctx,in_ptrs,n_in,out_ptrs,g_graph.num_outputs);
+    res->latency_us=HAL_Timer_GetElapsedUs(t0);
+    res->peak_mem_kb=KMEM_ArenaGetUsed(g_tensor_arena)/1024;
+    res->ok=(s==STATUS_OK);
+    ONNX_Graph_Cleanup(&g_graph);
+}
+
+static const char* g_bench_models[]={
+    "/storage/tiny_mlp.onnx","/storage/resnet_micro.onnx",
+    "/storage/conv_bn_net.onnx","/storage/lenet5.onnx",
+    "/storage/alexnet_tiny.onnx","/storage/vgg_nano.onnx",
+    "/storage/transformer_tiny.onnx",
+};
+#define G_BENCH_COUNT 7U
+
+static void cmd_onnx_bench(int argc, char *argv[])
+{
+    BenchResult results[BENCH_MAX_MODELS];
+    uint32_t count=0;
+
+    if (argc>=2){
+        for (int i=1;i<argc&&count<BENCH_MAX_MODELS;i++){
+            HAL_UART_PutString("  >> ");HAL_UART_PutString(argv[i]);HAL_UART_PutString(" ...\n");
+            bench_one(argv[i],&results[count++]); THREAD_Yield();}
+    } else {
+        HAL_UART_PutString("No models specified -- benchmarking all /storage models:\n");
+        for (uint32_t i=0;i<G_BENCH_COUNT&&count<BENCH_MAX_MODELS;i++){
+            HAL_UART_PutString("  >> ");HAL_UART_PutString(g_bench_models[i]);HAL_UART_PutString(" ...\n");
+            bench_one(g_bench_models[i],&results[count++]); THREAD_Yield();}
+    }
+    if (count==0){HAL_UART_PutString("onnx_bench: no models to benchmark\n");return;}
+
+    HAL_UART_PutString("\n=================================================================\n");
+    HAL_UART_PutString(" ONNX Benchmark Results\n");
+    HAL_UART_PutString("=================================================================\n");
+    HAL_UART_PutString(" Model                       Nodes  Tensors    Params  "
+                       "Peak Mem    Latency\n");
+    HAL_UART_PutString(" ---------------------------  -----  -------  --------  "
+                       "--------  ---------\n");
+    for (uint32_t i=0;i<count;i++){
+        BenchResult* r=&results[i];
+        HAL_UART_PutString(" "); bench_print_name(r->name);
+        if (!r->ok){HAL_UART_PutString("  [FAILED]\n");continue;}
+        bench_dec_w(r->num_nodes,  5); HAL_UART_PutString("  ");
+        bench_dec_w(r->num_tensors,7); HAL_UART_PutString("  ");
+        bench_print_params(r->param_count);  HAL_UART_PutString("  ");
+        bench_print_mem(r->peak_mem_kb);     HAL_UART_PutString("  ");
+        bench_print_latency(r->latency_us);  HAL_UART_PutString("\n");
+    }
+    HAL_UART_PutString("=================================================================\n");
+    HAL_UART_PutString(" Models   : "); bench_dec_w(count,1); HAL_UART_PutString("\n");
+    HAL_UART_PutString(" Params   = total weight+bias elements (all initialisers)\n");
+    HAL_UART_PutString(" Peak Mem = arena bytes consumed after inference\n");
+    HAL_UART_PutString(" Latency  = single forward pass (after 1 warmup run)\n");
+    HAL_UART_PutString("=================================================================\n\n");
+}
+
 Status ONNX_RegisterCommands(void)
 {
     Status s;
 
-    s = CMD_Register("onnx_info", "Print ONNX model metadata", cmd_onnx_info);
+    s = CMD_Register("onnx_info",  "Print ONNX model metadata",              cmd_onnx_info);
     if (s != STATUS_OK) return s;
 
-    s = CMD_Register("onnx_run", "Run ONNX model inference", cmd_onnx_run);
+    s = CMD_Register("onnx_run",   "Run ONNX model inference",               cmd_onnx_run);
     if (s != STATUS_OK) return s;
 
-    s = CMD_Register("onnx_unpack", "Write built-in model to file", cmd_onnx_unpack);
+    s = CMD_Register("onnx_unpack","Write built-in model to file",           cmd_onnx_unpack);
+    if (s != STATUS_OK) return s;
+
+    s = CMD_Register("onnx_bench", "Benchmark and compare ONNX models",      cmd_onnx_bench);
     if (s != STATUS_OK) return s;
 
     return STATUS_OK;
