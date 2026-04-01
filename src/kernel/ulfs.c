@@ -674,10 +674,10 @@ static void ULFS_FormatStore(uint32_t store_idx)
     bitmap_set(mb, 3);  
 
     ulfs_inode_block_t *ib0 = get_inode_block(ULFS_BID_INODE0);
-    ib0->n_used   = 1;           
+    ib0->n_used    = (store_idx == ULFS_STORE_VOL) ? 2 : 1;           
     ib0->ino_start = 0;
-    ib0->bid_prev = 0;
-    ib0->bid_next = 0;
+    ib0->bid_prev  = 0;
+    ib0->bid_next  = 0;
 
     ulfs_inode_t *root_inode = &ib0->inodes[0];
     root_inode->type     = ULFS_TYPE_DIR;
@@ -685,14 +685,31 @@ static void ULFS_FormatStore(uint32_t store_idx)
     root_inode->bid_head = ULFS_BID_ROOT_DIR;   
     root_inode->bid_block = 0;
 
+    if (store_idx == ULFS_STORE_VOL) {
+        /* Add a dummy inode for /storage so it shows up in Readdir */
+        ulfs_inode_t *storage_inode = &ib0->inodes[1];
+        storage_inode->type     = ULFS_TYPE_DIR;
+        storage_inode->size     = 0;
+        storage_inode->bid_head = 0; /* empty, but path_resolve redirects anyway */   
+        storage_inode->bid_block = 0;
+    }
+
     ulfs_dirent_t *root_dir = get_dir_block(ULFS_BID_ROOT_DIR);
     root_dir[0].ino = 0;
     ulfs_strncpy(root_dir[0].name, ".", ULFS_NAME_MAX);
     root_dir[1].ino = 0;
     ulfs_strncpy(root_dir[1].name, "..", ULFS_NAME_MAX);
-    root_inode->size = 2 * sizeof(ulfs_dirent_t);
-
-    sb->inode_count = 1;
+    
+    if (store_idx == ULFS_STORE_VOL) {
+        /* Add virtual /storage mount point entry so it appears in ls / */
+        root_dir[2].ino = 1;
+        ulfs_strncpy(root_dir[2].name, "storage", ULFS_NAME_MAX);
+        root_inode->size = 3 * sizeof(ulfs_dirent_t);
+        sb->inode_count = 2;
+    } else {
+        root_inode->size = 2 * sizeof(ulfs_dirent_t);
+        sb->inode_count = 1;
+    }
 }
 
 Status ULFS_Init(void)

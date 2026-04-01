@@ -25,6 +25,7 @@
 #include "kernel/ulfs.h"
 #include "kernel/fs_cmds.h"
 #include "kernel/storage.h"
+#include "kernel/initfs.h"
 #include "onnx/onnx_loader_demo.h"
 #include "onnx/onnx_test.h"
 #include "onnx/onnx_cmds.h"
@@ -369,6 +370,12 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT] Initializing NVRAM storage...\n");
     status = STORAGE_Init();
     HAL_UART_PutString("[BOOT] NVRAM status: ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+
+    /* ---- Step 8f: Populate /storage with embedded files ---- */
+    status = INITFS_Populate();
+    HAL_UART_PutString("[BOOT] InitFS  : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
 

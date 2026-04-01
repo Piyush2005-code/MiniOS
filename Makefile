@@ -17,6 +17,8 @@ SRC_DIR     = src
 INC_DIR     = include
 BUILD_DIR   = build
 OBJ_DIR     = $(BUILD_DIR)/obj
+GEN_DIR     = $(BUILD_DIR)/gen
+STORAGE_DIR = $(SRC_DIR)/storage
 
 # ---- Output ----
 TARGET_ELF  = $(BUILD_DIR)/kernel.elf
@@ -33,6 +35,7 @@ CFLAGS   = -std=c11 \
            -O2 \
            -mcpu=cortex-a53 \
            -I$(INC_DIR) \
+           -I$(GEN_DIR) \
            -g
 
 ASFLAGS  = -mcpu=cortex-a53 \
@@ -62,6 +65,7 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/cmd.c \
            $(SRC_DIR)/kernel/shell.c \
            $(SRC_DIR)/kernel/storage.c \
+           $(SRC_DIR)/kernel/initfs.c \
            $(SRC_DIR)/kernel/main.c \
            $(SRC_DIR)/onnx/onnx_types.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
@@ -76,10 +80,14 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/onnx/onnx_test.c \
            $(SRC_DIR)/onnx/onnx_loader_demo.c
 
+# ---- Generated sources (initfs file embedding) ----
+GEN_SRCS = $(GEN_DIR)/initfs_data.c
+
 # ---- Object files ----
 ASM_OBJS = $(patsubst $(SRC_DIR)/%.S, $(OBJ_DIR)/%.o, $(ASM_SRCS))
 C_OBJS   = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(C_SRCS))
-ALL_OBJS = $(ASM_OBJS) $(C_OBJS)
+GEN_OBJS = $(OBJ_DIR)/gen/initfs_data.o
+ALL_OBJS = $(ASM_OBJS) $(C_OBJS) $(GEN_OBJS)
 
 # ---- QEMU ----
 QEMU     = qemu-system-aarch64
@@ -94,7 +102,7 @@ QEMU_FLAGS = -machine virt \
 # Targets
 # ============================================================================
 
-.PHONY: all clean run debug disasm size
+.PHONY: all clean run debug disasm size generate_initfs
 
 all: $(TARGET_ELF) $(TARGET_BIN)
 	@echo ""
@@ -120,6 +128,22 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.S
 
 # ---- C files ----
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(dir $@)
+	@echo "[CC] $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# ---- Generated initfs data (embed src/storage/ files) ----
+generate_initfs: $(GEN_SRCS)
+
+$(GEN_SRCS) $(GEN_DIR)/initfs_data.h: $(wildcard $(STORAGE_DIR)/*) $(wildcard $(STORAGE_DIR)/**/*) scripts/embed_storage.py
+	@mkdir -p $(GEN_DIR)
+	@echo "[GEN] Embedding storage files..."
+	@python3 scripts/embed_storage.py $(STORAGE_DIR) $(GEN_DIR)
+
+# initfs.c depends on the generated header
+$(OBJ_DIR)/kernel/initfs.o: $(GEN_DIR)/initfs_data.h
+
+$(OBJ_DIR)/gen/initfs_data.o: $(GEN_DIR)/initfs_data.c $(GEN_DIR)/initfs_data.h
 	@mkdir -p $(dir $@)
 	@echo "[CC] $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
