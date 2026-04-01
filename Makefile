@@ -67,6 +67,7 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
            $(SRC_DIR)/onnx/onnx_runtime.c \
            $(SRC_DIR)/onnx/onnx_loader.c \
+           $(SRC_DIR)/onnx/onnx_cmds.c \
            $(SRC_DIR)/onnx/test_models/simple_add_model.c \
            $(SRC_DIR)/onnx/test_models/simple_mul_model.c \
            $(SRC_DIR)/onnx/test_models/simple_relu_model.c \
