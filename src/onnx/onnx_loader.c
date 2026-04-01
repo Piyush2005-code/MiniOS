@@ -531,6 +531,8 @@ static Status proto_parse_node(ProtoReader* reader, uint64_t node_msg_len, ONNX_
             op_enum = ONNX_OP_CLIP;
         } else if (op_type[0] == 'I' && op_type[1] == 'd' && op_type[2] == 'e' && op_type[3] == 'n') {
             op_enum = ONNX_OP_IDENTITY;
+        } else if (op_type[0] == 'L' && op_type[1] == 'R' && op_type[2] == 'N' && op_type[3] == '\0') {
+            op_enum = ONNX_OP_LRN;
         }
     }
     

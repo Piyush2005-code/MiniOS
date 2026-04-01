@@ -49,6 +49,7 @@ const char* ONNX_GetOperatorName(ONNX_OperatorType op_type)
         case ONNX_OP_REDUCEMIN:  return "ReduceMin";
         case ONNX_OP_CLIP:       return "Clip";
         case ONNX_OP_IDENTITY:   return "Identity";
+        case ONNX_OP_LRN:        return "LRN";
         default:                 return "Unknown";
     }
 }

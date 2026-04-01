@@ -1,12 +1,12 @@
 /**
  * @file onnx_cmds.c
  * @brief ONNX Shell Command Implementations
+ *
+ * Provides the onnx_info, onnx_run, and onnx_unpack shell commands.
+ * Fixed for AlexNet-class models: raised size limits, added LRN support,
+ * fixed GEMM transB, and extended shape propagation for Conv/Pool/GEMM.
  */
 
-#include "onnx/onnx_cmds.h"
-#include "onnx/onnx_loader.h"
-#include "onnx/onnx_graph.h"
-#include "onnx/onnx_runtime.h"
 #include "onnx/onnx_cmds.h"
 #include "onnx/onnx_loader.h"
 #include "onnx/onnx_graph.h"
@@ -21,8 +21,8 @@
 extern unsigned char simple_add_onnx[];
 extern unsigned int simple_add_onnx_len;
 
-#define MAX_MODEL_SIZE (2 * 1024 * 1024)
-#define MAX_ARENA_SIZE (1024 * 512)
+#define MAX_MODEL_SIZE (8 * 1024 * 1024)    /* 8 MB — enough for a tiny AlexNet variant */
+#define MAX_ARENA_SIZE (128 * 1024 * 1024)  /* 128 MB — fits small CNN activations + weights */
 
 static uint8_t g_model_buffer[MAX_MODEL_SIZE];
 static ONNX_Graph g_graph;
@@ -219,11 +219,17 @@ static void cmd_onnx_run(int argc, char *argv[])
         return;
     }
 
-    /* Provide a dummy input shape if the model didn't specify one */
+    /* Provide a proper fallback input shape if the model didn't specify one.
+     * Use [1, 3, 32, 32] — a minimal 4-D CNN input — rather than a bare [3],
+     * which is meaningless for any conv-based model. */
     if (input_tensor->shape.total_elements == 0) {
-        input_tensor->shape.ndim = 1;
-        input_tensor->shape.dims[0] = 3;
-        input_tensor->shape.total_elements = 3;
+        input_tensor->shape.ndim = 4;
+        input_tensor->shape.dims[0] = 1;
+        input_tensor->shape.dims[1] = 3;
+        input_tensor->shape.dims[2] = 32;
+        input_tensor->shape.dims[3] = 32;
+        input_tensor->shape.total_elements = 1 * 3 * 32 * 32; /* 3072 */
+        HAL_UART_PutString("onnx_run: Warning: model has no input shape; using fallback [1,3,32,32]\n");
     }
 
     /* Allocate user input */
@@ -294,9 +300,13 @@ static void cmd_onnx_run(int argc, char *argv[])
     ONNX_Graph_BuildDependencies(&g_graph);
     ONNX_Graph_GenerateSchedule(&g_graph);
 
-    /* Very basic shape propagation */
+    /* Shape propagation — propagate output shapes before allocating tensors.
+     * Without this, intermediate tensors remain 1-element placeholders and
+     * the runtime tries to write into zero-sized buffers. */
     for (uint32_t i = 0; i < g_graph.schedule_length; i++) {
         ONNX_Node* node = g_graph.exec_schedule[i];
+
+        /* --- MatMul [M,K]*[K,N]->[M,N] --- */
         if (node->op_type == ONNX_OP_MATMUL && node->num_inputs >= 2 && node->num_outputs >= 1) {
             ONNX_Tensor* a = node->inputs[0];
             ONNX_Tensor* b = node->inputs[1];
@@ -308,30 +318,131 @@ static void cmd_onnx_run(int argc, char *argv[])
                 c->shape.total_elements = c->shape.dims[0] * c->shape.dims[1];
             }
         }
+        /* --- GEMM [M,K]*[K,N or N,K]->[M,N] --- */
+        else if (node->op_type == ONNX_OP_GEMM && node->num_inputs >= 2 && node->num_outputs >= 1) {
+            ONNX_Tensor* a = node->inputs[0];
+            ONNX_Tensor* b = node->inputs[1];
+            ONNX_Tensor* c = node->outputs[0];
+            if (a->shape.ndim >= 2 && b->shape.ndim >= 2) {
+                uint64_t K = a->shape.dims[1];
+                bool transB = (b->shape.dims[0] != K);
+                uint64_t N_out = transB ? b->shape.dims[0] : b->shape.dims[1];
+                c->shape.ndim = 2;
+                c->shape.dims[0] = a->shape.dims[0];
+                c->shape.dims[1] = N_out;
+                c->shape.total_elements = c->shape.dims[0] * N_out;
+            }
+        }
+        /* --- Flatten [N,C,H,W]->[N, C*H*W] --- */
         else if (node->op_type == ONNX_OP_FLATTEN && node->num_inputs >= 1 && node->num_outputs >= 1) {
             ONNX_Tensor* a = node->inputs[0];
             ONNX_Tensor* c = node->outputs[0];
             if (a->shape.ndim >= 2) {
+                int axis = (int)node->attributes.axis;
+                if (axis <= 0) axis = 1; /* ONNX default is axis=1 */
+                if ((uint32_t)axis > a->shape.ndim) axis = (int)a->shape.ndim;
+                uint64_t dim1 = 1;
+                for (int d = 0; d < axis; d++) dim1 *= a->shape.dims[d];
+                uint64_t dim2 = 1;
+                for (uint32_t d = (uint32_t)axis; d < a->shape.ndim; d++) dim2 *= a->shape.dims[d];
                 c->shape.ndim = 2;
-                c->shape.dims[0] = a->shape.dims[0];
-                uint32_t flat = 1;
-                for (uint32_t d = 1; d < a->shape.ndim; d++) flat *= a->shape.dims[d];
-                c->shape.dims[1] = flat;
-                c->shape.total_elements = c->shape.dims[0] * c->shape.dims[1];
+                c->shape.dims[0] = dim1;
+                c->shape.dims[1] = dim2;
+                c->shape.total_elements = dim1 * dim2;
             }
         }
-        else if (node->num_inputs >= 1 && node->num_outputs >= 1 && 
-                 (node->op_type == ONNX_OP_RELU || node->op_type == ONNX_OP_SIGMOID || 
-                  node->op_type == ONNX_OP_TANH || node->op_type == ONNX_OP_SOFTMAX ||
-                  node->op_type == ONNX_OP_ABS || node->op_type == ONNX_OP_NEG ||
-                  node->op_type == ONNX_OP_EXP || node->op_type == ONNX_OP_LOG ||
-                  node->op_type == ONNX_OP_SQRT || node->op_type == ONNX_OP_CEIL ||
-                  node->op_type == ONNX_OP_FLOOR || node->op_type == ONNX_OP_SIN ||
-                  node->op_type == ONNX_OP_COS || node->op_type == ONNX_OP_IDENTITY ||
-                  node->op_type == ONNX_OP_CLIP || node->op_type == ONNX_OP_LEAKYRELU)) {
+        /* --- Conv2D [N,Cin,H,W] -> [N,Cout,H_out,W_out] --- */
+        else if (node->op_type == ONNX_OP_CONV && node->num_inputs >= 2 && node->num_outputs >= 1) {
+            ONNX_Tensor* x = node->inputs[0];
+            ONNX_Tensor* w = node->inputs[1];
+            ONNX_Tensor* y = node->outputs[0];
+            if (x->shape.ndim == 4 && w->shape.ndim == 4) {
+                uint64_t h_in = x->shape.dims[2];
+                uint64_t w_in = x->shape.dims[3];
+                uint64_t k_h = (node->attributes.kernel_shape_len >= 1) ?
+                                (uint64_t)node->attributes.kernel_shape[0] : w->shape.dims[2];
+                uint64_t k_w = (node->attributes.kernel_shape_len >= 2) ?
+                                (uint64_t)node->attributes.kernel_shape[1] : w->shape.dims[3];
+                uint64_t s_h = (node->attributes.strides_len >= 1) ?
+                                (uint64_t)node->attributes.strides[0] : 1;
+                uint64_t s_w = (node->attributes.strides_len >= 2) ?
+                                (uint64_t)node->attributes.strides[1] : s_h;
+                uint64_t p_h = (node->attributes.pads_len >= 1) ?
+                                (uint64_t)node->attributes.pads[0] : 0;
+                uint64_t p_w = (node->attributes.pads_len >= 2) ?
+                                (uint64_t)node->attributes.pads[1] : 0;
+                uint64_t h_out = (h_in + 2*p_h - k_h) / s_h + 1;
+                uint64_t w_out = (w_in + 2*p_w - k_w) / s_w + 1;
+                y->shape.ndim = 4;
+                y->shape.dims[0] = x->shape.dims[0];  /* batch N */
+                y->shape.dims[1] = w->shape.dims[0];  /* C_out */
+                y->shape.dims[2] = h_out;
+                y->shape.dims[3] = w_out;
+                y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
+            }
+        }
+        /* --- MaxPool / AvgPool [N,C,H,W] -> [N,C,H_out,W_out] --- */
+        else if ((node->op_type == ONNX_OP_MAXPOOL || node->op_type == ONNX_OP_AVGPOOL) &&
+                 node->num_inputs >= 1 && node->num_outputs >= 1) {
+            ONNX_Tensor* x = node->inputs[0];
+            ONNX_Tensor* y = node->outputs[0];
+            if (x->shape.ndim == 4) {
+                uint64_t h_in = x->shape.dims[2];
+                uint64_t w_in = x->shape.dims[3];
+                uint64_t k_h = (node->attributes.kernel_shape_len >= 1) ?
+                                (uint64_t)node->attributes.kernel_shape[0] : 2;
+                uint64_t k_w = (node->attributes.kernel_shape_len >= 2) ?
+                                (uint64_t)node->attributes.kernel_shape[1] : 2;
+                uint64_t s_h = (node->attributes.strides_len >= 1) ?
+                                (uint64_t)node->attributes.strides[0] : 2;
+                uint64_t s_w = (node->attributes.strides_len >= 2) ?
+                                (uint64_t)node->attributes.strides[1] : s_h;
+                uint64_t p_h = (node->attributes.pads_len >= 1) ?
+                                (uint64_t)node->attributes.pads[0] : 0;
+                uint64_t p_w = (node->attributes.pads_len >= 2) ?
+                                (uint64_t)node->attributes.pads[1] : 0;
+                uint64_t h_out = (h_in + 2*p_h - k_h) / s_h + 1;
+                uint64_t w_out = (w_in + 2*p_w - k_w) / s_w + 1;
+                y->shape.ndim = 4;
+                y->shape.dims[0] = x->shape.dims[0];
+                y->shape.dims[1] = x->shape.dims[1];
+                y->shape.dims[2] = h_out;
+                y->shape.dims[3] = w_out;
+                y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
+            }
+        }
+        /* --- GlobalAveragePool [N,C,H,W] -> [N,C,1,1] --- */
+        else if (node->op_type == ONNX_OP_GLOBALAVERAGEPOOL &&
+                 node->num_inputs >= 1 && node->num_outputs >= 1) {
+            ONNX_Tensor* x = node->inputs[0];
+            ONNX_Tensor* y = node->outputs[0];
+            if (x->shape.ndim >= 2) {
+                y->shape.ndim = x->shape.ndim;
+                y->shape.dims[0] = x->shape.dims[0];
+                y->shape.dims[1] = x->shape.dims[1];
+                for (uint32_t d = 2; d < x->shape.ndim; d++) y->shape.dims[d] = 1;
+                y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1];
+            }
+        }
+        /* --- LRN: output same shape as input --- */
+        else if (node->op_type == ONNX_OP_LRN &&
+                 node->num_inputs >= 1 && node->num_outputs >= 1) {
             node->outputs[0]->shape = node->inputs[0]->shape;
         }
-        else if (node->num_inputs >= 2 && node->num_outputs >= 1 && 
+        /* --- Element-wise unary: copy input shape --- */
+        else if (node->num_inputs >= 1 && node->num_outputs >= 1 &&
+                 (node->op_type == ONNX_OP_RELU    || node->op_type == ONNX_OP_SIGMOID ||
+                  node->op_type == ONNX_OP_TANH    || node->op_type == ONNX_OP_SOFTMAX ||
+                  node->op_type == ONNX_OP_ABS     || node->op_type == ONNX_OP_NEG     ||
+                  node->op_type == ONNX_OP_EXP     || node->op_type == ONNX_OP_LOG     ||
+                  node->op_type == ONNX_OP_SQRT    || node->op_type == ONNX_OP_CEIL    ||
+                  node->op_type == ONNX_OP_FLOOR   || node->op_type == ONNX_OP_SIN     ||
+                  node->op_type == ONNX_OP_COS     || node->op_type == ONNX_OP_IDENTITY||
+                  node->op_type == ONNX_OP_CLIP    || node->op_type == ONNX_OP_LEAKYRELU)) {
+            node->outputs[0]->shape = node->inputs[0]->shape;
+        }
+        /* --- Element-wise binary: output = larger of two inputs --- */
+        else if (node->num_inputs >= 2 && node->num_outputs >= 1 &&
                  (node->op_type == ONNX_OP_ADD || node->op_type == ONNX_OP_SUB ||
                   node->op_type == ONNX_OP_MUL || node->op_type == ONNX_OP_DIV)) {
             ONNX_Tensor* a = node->inputs[0];

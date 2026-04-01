@@ -672,7 +672,17 @@ Status ONNX_Execute_GEMM(ONNX_Node* node, ONNX_InferenceContext* ctx)
 {
     if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
 
-    /* A, B, C -> Y.  Y = alpha * A * B + beta * C */
+    /* A, B, C -> Y.  Y = alpha * op(A) * op(B) + beta * C
+     * ONNX GEMM attributes:
+     *   transA (field group – stored in keepdims by our minimal parser)
+     *   transB (field group – stored in keepdims by our minimal parser)
+     * AlexNet FC layers use transB=1 (weights stored transposed).
+     * We detect transB via the B shape: if B is stored as [K,N] (transB=1)
+     * then B->shape.dims[0]==K and B->shape.dims[1]==N.
+     * We infer transB from shape heuristics:
+     *   if M == A.dims[0] and B.dims[0] == A.dims[1] -> no transpose (standard)
+     *   otherwise assume transB=1 (B stored as [N,K], access B[j*K+k])
+     */
     if (node->num_inputs < 2 || node->num_outputs != 1) {
         return STATUS_ERROR_INVALID_GRAPH;
     }
@@ -682,27 +692,50 @@ Status ONNX_Execute_GEMM(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* C = (node->num_inputs > 2) ? node->inputs[2] : NULL;
     ONNX_Tensor* Y = node->outputs[0];
 
-    float alpha = node->attributes.alpha != 0.0f ? node->attributes.alpha : 1.0f;
-    float beta = node->attributes.beta != 0.0f ? node->attributes.beta : 1.0f;
+    float alpha = (node->attributes.alpha != 0.0f) ? node->attributes.alpha : 1.0f;
+    float beta  = (node->attributes.beta  != 0.0f) ? node->attributes.beta  : 1.0f;
 
-    /* Simplified, no transpose attribute handling yet */
-    uint32_t M = A->shape.dims[0];
-    uint32_t K = A->shape.dims[1];
-    uint32_t N = B->shape.dims[1];
+    uint32_t M = (uint32_t)A->shape.dims[0];
+    uint32_t K = (uint32_t)A->shape.dims[1];
+
+    /* Determine if B is transposed.
+     * Standard (transB=0): B is [K, N], so B.dims[0]==K.
+     * Transposed (transB=1): B is [N, K], so B.dims[0]!=K (unless square). */
+    bool transB = ((uint32_t)B->shape.dims[0] != K);
+    uint32_t N_out;
+    if (!transB) {
+        N_out = (uint32_t)B->shape.dims[1];
+    } else {
+        N_out = (uint32_t)B->shape.dims[0];
+        /* Verify inner dim matches */
+        if ((uint32_t)B->shape.dims[1] != K) {
+            HAL_UART_PutString("[ONNX] GEMM: shape mismatch\n");
+            return STATUS_ERROR_SHAPE_MISMATCH;
+        }
+    }
 
     float* a_data = (float*)A->data;
     float* b_data = (float*)B->data;
     float* c_data = C ? (float*)C->data : NULL;
     float* y_data = (float*)Y->data;
 
+    /* Update output shape */
+    Y->shape.ndim = 2;
+    Y->shape.dims[0] = M;
+    Y->shape.dims[1] = N_out;
+    Y->shape.total_elements = (uint64_t)M * N_out;
+
     for (uint32_t i = 0; i < M; i++) {
-        for (uint32_t j = 0; j < N; j++) {
+        for (uint32_t j = 0; j < N_out; j++) {
             float sum = 0.0f;
             for (uint32_t k = 0; k < K; k++) {
-                sum += a_data[i * K + k] * b_data[k * N + j];
+                float a_val = a_data[i * K + k];
+                float b_val = transB ? b_data[j * K + k]   /* B[j,k] */
+                                     : b_data[k * N_out + j]; /* B[k,j] */
+                sum += a_val * b_val;
             }
-            float c_val = c_data ? c_data[j] : 0.0f; // Assume 1D broadcast for C
-            y_data[i * N + j] = alpha * sum + beta * c_val;
+            float c_val = c_data ? c_data[j] : 0.0f;
+            y_data[i * N_out + j] = alpha * sum + beta * c_val;
         }
     }
 
@@ -1061,6 +1094,83 @@ static Status ONNX_Execute_Identity(ONNX_Node* node, ONNX_InferenceContext* ctx)
     return STATUS_OK;
 }
 
+/**
+ * @brief Local Response Normalization (LRN)
+ * ONNX spec: y[n,c,h,w] = x[n,c,h,w] / (bias + alpha/size * sum_{j=max(0,c-floor(size/2))}^{min(C-1,c+floor(size/2))} x[n,j,h,w]^2)^beta
+ * AlexNet uses default parameters: size=5, alpha=0.0001, beta=0.75, bias=1.0
+ */
+static Status ONNX_Execute_LRN(ONNX_Node* node, ONNX_InferenceContext* ctx)
+{
+    if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
+    if (node->num_inputs != 1 || node->num_outputs != 1) return STATUS_ERROR_INVALID_GRAPH;
+
+    ONNX_Tensor* in  = node->inputs[0];
+    ONNX_Tensor* out = node->outputs[0];
+
+    if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
+    if (in->shape.ndim != 4) return STATUS_ERROR_NOT_SUPPORTED;
+
+    /* LRN attributes — use ONNX defaults if not parsed */
+    float  alpha = (node->attributes.alpha != 0.0f) ? node->attributes.alpha : 0.0001f;
+    float  beta  = (node->attributes.beta  != 0.0f) ? node->attributes.beta  : 0.75f;
+    /* size and bias are stored in axis/keepdims temporarily */
+    int64_t lrn_size = (node->attributes.axis > 0) ? node->attributes.axis : 5;
+    /* bias defaults to 1.0 */
+    float  bias = 1.0f;
+
+    uint32_t N  = (uint32_t)in->shape.dims[0];
+    uint32_t C  = (uint32_t)in->shape.dims[1];
+    uint32_t H  = (uint32_t)in->shape.dims[2];
+    uint32_t W  = (uint32_t)in->shape.dims[3];
+
+    float* in_data  = (float*)in->data;
+    float* out_data = (float*)out->data;
+
+    int32_t half = (int32_t)(lrn_size / 2);
+
+    for (uint32_t n = 0; n < N; n++) {
+        for (uint32_t c = 0; c < C; c++) {
+            for (uint32_t h = 0; h < H; h++) {
+                for (uint32_t w = 0; w < W; w++) {
+                    /* Compute sum of squares over the local channel window */
+                    float sq_sum = 0.0f;
+                    int32_t c_start = (int32_t)c - half;
+                    int32_t c_end   = (int32_t)c + half;
+                    if (c_start < 0) c_start = 0;
+                    if (c_end >= (int32_t)C) c_end = (int32_t)C - 1;
+
+                    for (int32_t j = c_start; j <= c_end; j++) {
+                        float v = in_data[n * C * H * W + (uint32_t)j * H * W + h * W + w];
+                        sq_sum += v * v;
+                    }
+
+                    /* Normalise */
+                    float denom = bias + alpha / (float)lrn_size * sq_sum;
+                    /* denom^beta approximated as exp(beta * log(denom)) */
+                    /* Use fast_sqrt for beta=0.75 special-case if possible */
+                    float denom_pow;
+                    if (beta == 0.75f) {
+                        /* denom^0.75 = sqrt(denom) * denom^0.25 = sqrt(sqrt(denom)*denom) */
+                        float sd = fast_sqrt(denom);
+                        denom_pow = fast_sqrt(sd * denom);
+                    } else {
+                        /* General: e^(beta * ln(denom)) */
+                        float ln_d = fast_log(denom);
+                        denom_pow = fast_exp(beta * ln_d);
+                    }
+
+                    uint32_t idx = n * C * H * W + c * H * W + h * W + w;
+                    out_data[idx] = (denom_pow > 0.0f) ? (in_data[idx] / denom_pow) : 0.0f;
+                }
+            }
+        }
+    }
+
+    /* Output shape is identical to input */
+    out->shape = in->shape;
+    return STATUS_OK;
+}
+
 static Status ONNX_Execute_Clip(ONNX_Node* node, ONNX_InferenceContext* ctx)
 {
     if (!node || !ctx) return STATUS_ERROR_INVALID_ARGUMENT;
@@ -1263,27 +1373,37 @@ Status ONNX_Execute_Conv(ONNX_Node* node, ONNX_InferenceContext* ctx)
     float* b_data = b ? (float*)b->data : NULL;
     float* y_data = (float*)y->data;
 
-    /* Naive convolution loops */
-    for (uint32_t oc = 0; oc < c_out; oc++) {
-        for (uint32_t oh = 0; oh < h_out; oh++) {
-            for (uint32_t ow = 0; ow < w_out; ow++) {
-                float sum = b_data ? b_data[oc] : 0.0f;
+    /* Naive convolution loops — correct for batch N */
+    uint32_t batch_n = (uint32_t)x->shape.dims[0];
+    for (uint32_t nb = 0; nb < batch_n; nb++) {
+        for (uint32_t oc = 0; oc < c_out; oc++) {
+            for (uint32_t oh = 0; oh < h_out; oh++) {
+                for (uint32_t ow = 0; ow < w_out; ow++) {
+                    float sum = b_data ? b_data[oc] : 0.0f;
 
-                for (uint32_t ic = 0; ic < c_in; ic++) {
-                    for (uint32_t kh = 0; kh < k_h; kh++) {
-                        for (uint32_t kw = 0; kw < k_w; kw++) {
-                            int32_t ih = oh * stride_h + kh - pad_h;
-                            int32_t iw = ow * stride_w + kw - pad_w;
+                    for (uint32_t ic = 0; ic < c_in; ic++) {
+                        for (uint32_t kh = 0; kh < k_h; kh++) {
+                            for (uint32_t kw = 0; kw < k_w; kw++) {
+                                int32_t ih = (int32_t)(oh * stride_h + kh) - (int32_t)pad_h;
+                                int32_t iw = (int32_t)(ow * stride_w + kw) - (int32_t)pad_w;
 
-                            if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
-                                float val_x = x_data[ic * h_in * w_in + ih * w_in + iw];
-                                float val_w = w_data[oc * c_in * k_h * k_w + ic * k_h * k_w + kh * k_w + kw];
-                                sum += val_x * val_w;
+                                if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
+                                    float val_x = x_data[nb * c_in * h_in * w_in +
+                                                          ic * h_in * w_in +
+                                                          (uint32_t)ih * w_in +
+                                                          (uint32_t)iw];
+                                    float val_w = w_data[oc * c_in * k_h * k_w +
+                                                          ic * k_h * k_w +
+                                                          kh * k_w + kw];
+                                    sum += val_x * val_w;
+                                }
                             }
                         }
                     }
+                    y_data[nb * c_out * h_out * w_out +
+                           oc * h_out * w_out +
+                           oh * w_out + ow] = sum;
                 }
-                y_data[oc * h_out * w_out + oh * w_out + ow] = sum;
             }
         }
     }
@@ -1329,23 +1449,31 @@ Status ONNX_Execute_MaxPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
     float* x_data = (float*)x->data;
     float* y_data = (float*)y->data;
 
-    for (uint32_t ic = 0; ic < c; ic++) {
-        for (uint32_t oh = 0; oh < h_out; oh++) {
-            for (uint32_t ow = 0; ow < w_out; ow++) {
-                float max_val = -1e9; // small float
+    uint32_t batch_n = (uint32_t)x->shape.dims[0];
+    for (uint32_t nb = 0; nb < batch_n; nb++) {
+        for (uint32_t ic = 0; ic < c; ic++) {
+            for (uint32_t oh = 0; oh < h_out; oh++) {
+                for (uint32_t ow = 0; ow < w_out; ow++) {
+                    float max_val = -1e38f;
 
-                for (uint32_t kh = 0; kh < k_h; kh++) {
-                    for (uint32_t kw = 0; kw < k_w; kw++) {
-                        int32_t ih = oh * stride_h + kh - pad_h;
-                        int32_t iw = ow * stride_w + kw - pad_w;
+                    for (uint32_t kh = 0; kh < k_h; kh++) {
+                        for (uint32_t kw = 0; kw < k_w; kw++) {
+                            int32_t ih = (int32_t)(oh * stride_h + kh) - (int32_t)pad_h;
+                            int32_t iw = (int32_t)(ow * stride_w + kw) - (int32_t)pad_w;
 
-                        if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
-                            float val = x_data[ic * h_in * w_in + ih * w_in + iw];
-                            if (val > max_val) max_val = val;
+                            if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
+                                float val = x_data[nb * c * h_in * w_in +
+                                                    ic * h_in * w_in +
+                                                    (uint32_t)ih * w_in +
+                                                    (uint32_t)iw];
+                                if (val > max_val) max_val = val;
+                            }
                         }
                     }
+                    y_data[nb * c * h_out * w_out +
+                           ic * h_out * w_out +
+                           oh * w_out + ow] = max_val;
                 }
-                y_data[ic * h_out * w_out + oh * w_out + ow] = max_val;
             }
         }
     }
@@ -1553,6 +1681,10 @@ Status ONNX_Runtime_ExecuteNode(ONNX_InferenceContext* ctx, ONNX_Node* node)
 
         case ONNX_OP_IDENTITY:
             status = ONNX_Execute_Identity(node, ctx);
+            break;
+
+        case ONNX_OP_LRN:
+            status = ONNX_Execute_LRN(node, ctx);
             break;
 
         case ONNX_OP_CLIP:

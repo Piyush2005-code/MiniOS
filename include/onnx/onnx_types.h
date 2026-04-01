@@ -96,6 +96,9 @@ typedef enum {
     ONNX_OP_CLIP,
     ONNX_OP_IDENTITY,
 
+    /* Normalization */
+    ONNX_OP_LRN,
+
     ONNX_OP_MAX_VALUE
 } ONNX_OperatorType;
 
