@@ -272,20 +272,18 @@ void SFU_OnReceive(uint32_t src_ip, uint16_t src_port,
                    uint8_t *buf, uint16_t len);
 
 /**
- * @brief Inference request handler stub
- *
- * Called when msg_type == SFU_MSG_INFER_REQUEST.
- * Stubbed until the inference engine integration in Phase 5.
- *
- * @param[in] src_ip    Requester's IP
- * @param[in] src_port  Requester's port
- * @param[in] hdr       Parsed SFU header
- * @param[in] payload   Request payload (tensor data)
- * @param[in] len       Payload byte count
+ * @brief Inference request handler callback type
  */
-void SFU_OnInferRequest(uint32_t src_ip, uint16_t src_port,
-                        sfu_header_t *hdr,
-                        uint8_t *payload, uint16_t len);
+typedef void (*sfu_infer_handler_t)(uint32_t src_ip,
+    uint16_t src_port, uint32_t req_id,
+    uint8_t* payload, uint16_t payload_len);
+
+/**
+ * @brief Register the inference request handler
+ *
+ * @param[in] h Handler function pointer
+ */
+void SFU_SetInferHandler(sfu_infer_handler_t h);
 
 /* ------------------------------------------------------------------ */
 /*  Reliability API                                                  */
