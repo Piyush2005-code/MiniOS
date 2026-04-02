@@ -72,6 +72,7 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/net/arp.c \
            $(SRC_DIR)/net/ipv4.c \
            $(SRC_DIR)/net/udp.c \
+           $(SRC_DIR)/net/sfu.c \
            $(SRC_DIR)/onnx/onnx_types.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
            $(SRC_DIR)/onnx/onnx_runtime.c \
