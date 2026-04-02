@@ -34,6 +34,7 @@
 #include "net/arp.h"
 #include "net/ipv4.h"
 #include "net/udp.h"
+#include "net/sfu.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols                                                   */
@@ -123,38 +124,6 @@ const char* STATUS_ToString(Status status)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Network stack: port 9000 debug handler                            */
-/* ------------------------------------------------------------------ */
-
-/**
- * @brief Temporary UDP debug handler for port 9000
- *
- * Logs each received datagram to UART. Replace with the SFU
- * receive function once the inference layer is ready.
- *
- * @param[in] src_ip    Sender IP (network byte order)
- * @param[in] src_port  Sender UDP port (host byte order)
- * @param[in] payload   Datagram payload
- * @param[in] len       Payload length in bytes
- */
-static void debug_udp_handler(uint32_t src_ip, uint16_t src_port,
-                               uint8_t *payload, uint16_t len)
-{
-    (void)src_ip;
-    HAL_UART_PutString("[UDP9] RX from port ");
-    HAL_UART_PutDec(src_port);
-    HAL_UART_PutString(" len=");
-    HAL_UART_PutDec(len);
-    HAL_UART_PutString(" data: ");
-    /* Print up to 64 bytes as printable ASCII, '.' for non-printable */
-    uint16_t print_len = len < 64u ? len : 64u;
-    for (uint16_t i = 0; i < print_len; i++) {
-        char c = (char)payload[i];
-        HAL_UART_PutChar((c >= 0x20 && c < 0x7F) ? c : '.');
-    }
-    HAL_UART_PutString("\n");
-}
 
 /* ------------------------------------------------------------------ */
 /*  IRQ dispatcher (called from vectors.S _irq_handler_full)          */
@@ -170,6 +139,9 @@ void HAL_IRQ_Handler(void)
 
         /* Update scheduler: wake sleeping threads */
         SCHED_TimerTick();
+        
+        /* Process network retransmissions */
+        SFU_Tick();
     } else if (irq_id == VNIC_GetIRQ()) {
         /* VirtIO-Net interrupt: ACK and process TX/RX rings */
         VNIC_IRQHandler();
@@ -352,24 +324,9 @@ void kernel_main(void)
     ARP_Init();
     IPV4_Init();
     UDP_Init();
-    UDP_Bind(9000u, debug_udp_handler);  /* ← replace with SFU_Receive later */
+    SFU_Init();      /* binds port 9000, replaces debug handler */
+    SFU_SelfTest();  /* serialize → deserialize round-trip check */
     HAL_UART_PutString("[BOOT] Network stack ready\n");
-
-    /* ---- Step 5c: UDP TX smoke test ---- */
-    /*
-     * Send a test datagram to the host (10.0.2.2) port 9000.
-     * Port 9000 is the only forwarded UDP port in the QEMU launch.
-     * Run on the host:  nc -u -l -p 9000
-     * You should see "hello from miniOS" printed.
-     */
-    {
-        static const uint8_t hello[] = "hello from miniOS";
-        HAL_UART_PutString("[BOOT] UDP TX smoke: sending to 10.0.2.2:9000\n");
-        int udp_r = UDP_Send(HOST_IP, 9000u, 9000u,
-                             (uint8_t *)hello, 17u);
-        HAL_UART_PutString("[BOOT] UDP TX smoke: ");
-        HAL_UART_PutString(udp_r == 0 ? "OK\n" : "FAILED\n");
-    }
 
     /* ---- Step 6: Initialize Timer ---- */
     HAL_UART_PutString("[BOOT] Initializing timer...\n");
