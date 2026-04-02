@@ -67,6 +67,11 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/storage.c \
            $(SRC_DIR)/kernel/initfs.c \
            $(SRC_DIR)/kernel/main.c \
+           $(SRC_DIR)/drivers/virtio_net.c \
+           $(SRC_DIR)/net/ethernet.c \
+           $(SRC_DIR)/net/arp.c \
+           $(SRC_DIR)/net/ipv4.c \
+           $(SRC_DIR)/net/udp.c \
            $(SRC_DIR)/onnx/onnx_types.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
            $(SRC_DIR)/onnx/onnx_runtime.c \
@@ -96,7 +101,9 @@ QEMU_FLAGS = -machine virt \
              -m 512M \
              -nographic \
              -kernel $(TARGET_ELF) \
-             -drive if=pflash,file=flash.img,format=raw,index=1
+             -drive if=pflash,file=flash.img,format=raw,index=1 \
+             -netdev user,id=net0,hostfwd=udp::9000-:9000 \
+             -device virtio-net-device,netdev=net0
 
 # ============================================================================
 # Targets
