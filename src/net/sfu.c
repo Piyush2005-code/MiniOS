@@ -74,6 +74,7 @@ typedef struct {
 static sfu_inflight_t sfu_inflight[SFU_MAX_INFLIGHT];
 
 static void (*sfu_timeout_cb)(uint32_t req_id) = (void(*)(uint32_t))0;
+static sfu_infer_handler_t sfu_infer_handler = (sfu_infer_handler_t)0;
 
 /* ------------------------------------------------------------------ */
 /*  Internal: Timing helpers                                         */
@@ -330,23 +331,9 @@ void SFU_SendNack(uint32_t dst_ip, uint16_t dst_port, uint32_t req_id)
                 (uint8_t *)0, 0u);
 }
 
-/* ------------------------------------------------------------------ */
-/*  SFU_OnInferRequest (stub — Phase 5)                              */
-/* ------------------------------------------------------------------ */
-
-void SFU_OnInferRequest(uint32_t src_ip, uint16_t src_port,
-                        sfu_header_t *hdr,
-                        uint8_t *payload, uint16_t len)
+void SFU_SetInferHandler(sfu_infer_handler_t h)
 {
-    (void)payload;
-    (void)len;
-
-    HAL_UART_PutString("[SFU ] INFER_REQUEST received (req_id=");
-    sfu_put_hex32(hdr->req_id);
-    HAL_UART_PutString(") — inference engine not yet connected\n");
-
-    /* Reply with NACK until inference integration is complete */
-    SFU_SendNack(src_ip, src_port, hdr->req_id);
+    sfu_infer_handler = h;
 }
 
 /* ------------------------------------------------------------------ */
@@ -387,7 +374,12 @@ void SFU_OnReceive(uint32_t src_ip, uint16_t src_port,
             break;
 
         case SFU_MSG_INFER_REQUEST:
-            SFU_OnInferRequest(src_ip, src_port, &hdr, payload, payload_len);
+            /* Immediately ACK the request payload */
+            SFU_SendRaw(src_ip, src_port, SFU_MSG_ACK, hdr.req_id, (uint8_t *)0, 0u);
+            /* Dispatch to infer handler if registered */
+            if (sfu_infer_handler) {
+                sfu_infer_handler(src_ip, src_port, hdr.req_id, payload, payload_len);
+            }
             break;
 
         case SFU_MSG_ACK:
