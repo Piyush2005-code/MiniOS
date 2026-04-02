@@ -33,6 +33,7 @@
 #include "kernel/ulfs.h"
 #include "kernel/kmem.h"
 #include "kernel/storage.h"
+#include "hal/flash.h"
 #include "lib/string.h"
 #include "hal/uart.h"
 
@@ -81,7 +82,7 @@ static inline uint8_t *bid_to_ptr(uint32_t bid)
 
 static inline ulfs_superblock_t *get_superblock(void)
 {
-    return g_sb[g_current_store];
+    return (ulfs_superblock_t *)bid_to_ptr(ULFS_BID_SUPERBLOCK);
 }
 
 static inline ulfs_mapblock_t *get_mapblock(uint32_t map_bid)
@@ -722,8 +723,8 @@ Status ULFS_Init(void)
 
     ULFS_FormatStore(ULFS_STORE_VOL);
 
-    /* Offset 0x40000 avoids "MNOS" boot sector in Flash */
-    STORAGE_Read(0x40000, g_fs_base[ULFS_STORE_NVRAM], ULFS_STORE_SIZE);
+    /* Offset STORAGE_FS_OFFSET avoids "MNOS" boot sector in Flash */
+    STORAGE_Read(STORAGE_FS_OFFSET, g_fs_base[ULFS_STORE_NVRAM], ULFS_STORE_SIZE);
     
     g_current_store = ULFS_STORE_NVRAM;
     g_sb[ULFS_STORE_NVRAM] = get_superblock();
@@ -752,10 +753,41 @@ void ULFS_Sync(void)
     if (!g_is_dirty[ULFS_STORE_NVRAM]) return;
 
     /* Flash writes are 256KB block-aligned sectors */
-    for (uint32_t i = 0; i < (ULFS_STORE_SIZE / 262144); i++) {
-        uint32_t flash_offset = 0x40000 + (i * 262144);
-        STORAGE_EraseSector(flash_offset);
-        STORAGE_Write(flash_offset, g_fs_base[ULFS_STORE_NVRAM] + (i * 262144), 262144);
+    uint32_t num_sectors = ULFS_STORE_SIZE / FLASH_SECTOR_SIZE;
+    for (uint32_t i = 0; i < num_sectors; i++) {
+        uint32_t flash_offset = STORAGE_FS_OFFSET + (i * FLASH_SECTOR_SIZE);
+        uint8_t *ram_sector = g_fs_base[ULFS_STORE_NVRAM] + (i * FLASH_SECTOR_SIZE);
+
+        bool sector_changed = false;
+        
+        /* Compare in 4KB chunks to minimize isolated stack bloat */
+        uint8_t chunk_buf[4096];
+        for (uint32_t c = 0; c < FLASH_SECTOR_SIZE; c += sizeof(chunk_buf)) {
+            STORAGE_Read(flash_offset + c, chunk_buf, sizeof(chunk_buf));
+            if (memcmp(chunk_buf, ram_sector + c, sizeof(chunk_buf)) != 0) {
+                sector_changed = true;
+                break;
+            }
+        }
+
+        /* Skip expensive MMIO erase/write overhead if perfectly identical */
+        if (!sector_changed) continue;
+
+        Status s = STORAGE_EraseSector(flash_offset);
+        if (s != STATUS_OK) {
+            HAL_UART_PutString("[ULFS] Sync: erase FAILED at sector ");
+            HAL_UART_PutDec(i);
+            HAL_UART_PutString(" — aborting (data NOT written)\n");
+            return;   /* keep dirty=true so next sync retries */
+        }
+
+        s = STORAGE_Write(flash_offset, ram_sector, FLASH_SECTOR_SIZE);
+        if (s != STATUS_OK) {
+            HAL_UART_PutString("[ULFS] Sync: write FAILED at sector ");
+            HAL_UART_PutDec(i);
+            HAL_UART_PutString("\n");
+            return;   /* keep dirty=true */
+        }
     }
     g_is_dirty[ULFS_STORE_NVRAM] = false;
 }

@@ -40,4 +40,13 @@ void *memcpy(void *dest, const void *src, size_t n);
  */
 size_t strlen(const char *s);
 
+/**
+ * @brief Compare memory regions
+ * @param[in] s1  First memory region
+ * @param[in] s2  Second memory region
+ * @param[in] n   Number of bytes to compare
+ * @return 0 if equal, <0 if s1 < s2, >0 if s1 > s2
+ */
+int memcmp(const void *s1, const void *s2, size_t n);
+
 #endif /* MINIOS_LIB_STRING_H */
