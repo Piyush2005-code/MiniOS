@@ -185,6 +185,7 @@ uintptr_t VNIC_Discover(void)
 
         uint32_t magic   = REG32(base + VIRTIO_MMIO_MAGIC_VALUE);
         uint32_t dev_id  = REG32(base + VIRTIO_MMIO_DEVICE_ID);
+        uint32_t version = REG32(base + VIRTIO_MMIO_VERSION);
 
         if (magic == VIRTIO_MAGIC && dev_id == VIRTIO_DEVID_NET) {
 
@@ -197,6 +198,8 @@ uintptr_t VNIC_Discover(void)
             put_hex32((uint32_t)base);
             HAL_UART_PutString(", slot ");
             HAL_UART_PutDec(slot_index);
+            HAL_UART_PutString(" version ");
+            HAL_UART_PutDec(version);
             HAL_UART_PutString(", IRQ ");
             HAL_UART_PutDec(g_nic.irq);
             HAL_UART_PutString("\n");
@@ -259,54 +262,37 @@ static int vnic_setup_queue(uint32_t   queue_idx,
     vnic_write(VIRTIO_MMIO_QUEUE_NUM, VNET_QUEUE_SIZE);
 
     /*
-     * Allocate the three rings from the permanent bump allocator.
-     * Alignment: VirtIO spec requires 16-byte alignment for desc,
-     * 2-byte for avail/used — we use 16 for all to be safe.
+     * Legacy VirtIO REQUIRES a contiguous, specifically-aligned layout.
+     * Memory layout: desc array, then avail struct, PAD to alignment, then used struct.
      */
-    VirtqDesc  *desc  = (VirtqDesc  *)KMEM_Alloc(
-        sizeof(VirtqDesc)  * VNET_QUEUE_SIZE, 16);
-    VirtqAvail *avail = (VirtqAvail *)KMEM_Alloc(
-        sizeof(VirtqAvail), 16);
-    VirtqUsed  *used  = (VirtqUsed  *)KMEM_Alloc(
-        sizeof(VirtqUsed),  16);
+    uint32_t align = 4096;
+    uint32_t desc_sz = sizeof(VirtqDesc) * VNET_QUEUE_SIZE;
+    uint32_t avail_sz = 2 + 2 + VNET_QUEUE_SIZE * 2 + 2;
+    uint32_t used_offset = (desc_sz + avail_sz + align - 1) & ~(align - 1);
+    uint32_t used_sz = 2 + 2 + VNET_QUEUE_SIZE * 8 + 2;
+    uint32_t total_sz = used_offset + used_sz;
 
-    if (!desc || !avail || !used) {
+    uint8_t *vring = (uint8_t *)KMEM_Alloc(total_sz, align);
+    if (!vring) {
         HAL_UART_PutString("[VNIC] ERROR: KMEM_Alloc failed for queue ");
         HAL_UART_PutDec(queue_idx);
         HAL_UART_PutString("\n");
         return -1;
     }
 
-    /* Zero the rings so flags/idx start clean */
-    for (size_t i = 0; i < sizeof(VirtqDesc) * VNET_QUEUE_SIZE; i++) {
-        ((uint8_t *)desc)[i] = 0;
-    }
-    for (size_t i = 0; i < sizeof(VirtqAvail); i++) {
-        ((uint8_t *)avail)[i] = 0;
-    }
-    for (size_t i = 0; i < sizeof(VirtqUsed); i++) {
-        ((uint8_t *)used)[i] = 0;
+    for (uint32_t i = 0; i < total_sz; i++) {
+        vring[i] = 0;
     }
 
-    /*
-     * Write physical (== virtual, identity-mapped) addresses.
-     * Split each 64-bit PA into low/high 32-bit halves.
-     */
-    uint64_t pa_desc  = (uint64_t)(uintptr_t)desc;
-    uint64_t pa_avail = (uint64_t)(uintptr_t)avail;
-    uint64_t pa_used  = (uint64_t)(uintptr_t)used;
+    VirtqDesc  *desc  = (VirtqDesc  *)vring;
+    VirtqAvail *avail = (VirtqAvail *)(vring + desc_sz);
+    VirtqUsed  *used  = (VirtqUsed  *)(vring + used_offset);
 
-    vnic_write(VIRTIO_MMIO_QUEUE_DESC_LOW,  (uint32_t)(pa_desc  & 0xFFFFFFFFu));
-    vnic_write(VIRTIO_MMIO_QUEUE_DESC_HIGH, (uint32_t)(pa_desc  >> 32));
-    vnic_write(VIRTIO_MMIO_QUEUE_AVAIL_LOW, (uint32_t)(pa_avail & 0xFFFFFFFFu));
-    vnic_write(VIRTIO_MMIO_QUEUE_AVAIL_HIGH,(uint32_t)(pa_avail >> 32));
-    vnic_write(VIRTIO_MMIO_QUEUE_USED_LOW,  (uint32_t)(pa_used  & 0xFFFFFFFFu));
-    vnic_write(VIRTIO_MMIO_QUEUE_USED_HIGH, (uint32_t)(pa_used  >> 32));
-
-    dsb_sy();
-
-    /* Mark queue ready */
-    vnic_write(VIRTIO_MMIO_QUEUE_READY, 1);
+    /* Tell device how to find the queues: alignment and PFN */
+    vnic_write(VIRTIO_MMIO_QUEUE_ALIGN, align);
+    
+    uint32_t pfn = (uint32_t)(((uintptr_t)vring) / align);
+    vnic_write(VIRTIO_MMIO_QUEUE_PFN, pfn);
     dsb_sy();
 
     *out_desc  = desc;
@@ -316,11 +302,11 @@ static int vnic_setup_queue(uint32_t   queue_idx,
     HAL_UART_PutString("[VNIC]   Queue ");
     HAL_UART_PutDec(queue_idx);
     HAL_UART_PutString(": desc=");
-    put_hex32((uint32_t)pa_desc);
+    put_hex32((uint32_t)(uintptr_t)desc);
     HAL_UART_PutString(" avail=");
-    put_hex32((uint32_t)pa_avail);
+    put_hex32((uint32_t)(uintptr_t)avail);
     HAL_UART_PutString(" used=");
-    put_hex32((uint32_t)pa_used);
+    put_hex32((uint32_t)(uintptr_t)used);
     HAL_UART_PutString("\n");
 
     return 0;
@@ -390,6 +376,10 @@ int VNIC_Init(void (*rx_cb)(uint8_t *frame, uint16_t len))
     HAL_UART_PutString(" drv_features=");
     put_hex32(drv_features);
     HAL_UART_PutString(")\n");
+
+    /* Write guest page size (required once, before any queue setup) */
+    vnic_write(VIRTIO_MMIO_GUEST_PAGE_SIZE, 4096);
+    dsb_sy();
 
     /* ----- Step 5: Set up RX virtqueue (queue 0) ----- */
     if (vnic_setup_queue(VNET_QUEUE_RX,

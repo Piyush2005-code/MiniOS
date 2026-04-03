@@ -330,6 +330,12 @@ void kernel_main(void)
     INFER_Init();    /* hooks INFER_OnRequest for SFU inference */
     HAL_UART_PutString("[BOOT] Network stack ready\n");
 
+    /* Wake up QEMU SLIRP by sending a dummy frame (triggers ARP request) */
+    uint8_t dummy[4] = "wake";
+    UDP_Send(0x0202000aUL, 9000u, 9000u, dummy, 4u);
+    extern void VNIC_Poll(void);
+    VNIC_Poll(); /* flush TX */
+
     /* ---- Step 6: Initialize Timer ---- */
     HAL_UART_PutString("[BOOT] Initializing timer...\n");
     status = HAL_Timer_Init();
