@@ -65,6 +65,13 @@ void HAL_UART_PutChar(char c);
 char HAL_UART_GetChar(void);
 
 /**
+ * @brief Try to receive a character from UART (non-blocking)
+ * @param[out] c  Receives the character if one is available
+ * @return 1 if a character was available and written to *c, 0 if RX FIFO empty
+ */
+int HAL_UART_TryGetChar(char *c);
+
+/**
  * @brief Send a null-terminated string via UART
  * @param[in] s Pointer to the string
  */

@@ -55,6 +55,8 @@
 #define SFU_MSG_NACK            0x04u  /**< Negative acknowledgement / error */
 #define SFU_MSG_PING            0x05u  /**< Connectivity probe */
 #define SFU_MSG_PONG            0x06u  /**< Connectivity probe reply */
+#define SFU_MSG_CMD             0x07u  /**< Host → guest: text command (null-terminated) */
+#define SFU_MSG_CMD_RESPONSE    0x08u  /**< Guest → host: command response text */
 #define SFU_MSG_ERROR           0x10u  /**< Protocol-level error notification */
 
 /* ------------------------------------------------------------------ */
@@ -284,6 +286,57 @@ typedef void (*sfu_infer_handler_t)(uint32_t src_ip,
  * @param[in] h Handler function pointer
  */
 void SFU_SetInferHandler(sfu_infer_handler_t h);
+
+/**
+ * @brief CMD message handler callback type
+ *
+ * Called when a SFU_MSG_CMD packet is received.
+ * The handler should reply using SFU_SendRaw(SFU_MSG_CMD_RESPONSE, …).
+ *
+ * @param src_ip   Sender IP
+ * @param src_port Sender port
+ * @param req_id   Request ID to echo in the response
+ * @param cmd      Null-terminated command string from the payload
+ * @param cmd_len  Byte count of cmd (not including the null terminator)
+ */
+typedef void (*sfu_cmd_handler_t)(uint32_t src_ip, uint16_t src_port,
+                                   uint32_t req_id,
+                                   const char *cmd, uint16_t cmd_len);
+
+/**
+ * @brief Register the CMD message handler
+ *
+ * @param[in] h  Handler function pointer (NULL to disable)
+ */
+void SFU_SetCmdHandler(sfu_cmd_handler_t h);
+
+/* ------------------------------------------------------------------ */
+/*  Network Statistics                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Per-layer SFU traffic counters (monotonically increasing)
+ */
+typedef struct {
+    uint32_t rx_packets;       /**< Total valid SFU packets received */
+    uint32_t tx_packets;       /**< Total SFU packets sent */
+    uint32_t rx_bytes;         /**< Total payload bytes received */
+    uint32_t tx_bytes;         /**< Total payload bytes sent */
+    uint32_t checksum_errors;  /**< RX packets dropped due to bad CRC */
+    uint32_t bad_magic;        /**< RX packets dropped due to bad magic */
+    uint32_t infer_requests;   /**< INFER_REQUEST packets received */
+    uint32_t infer_responses;  /**< INFER_RESPONSE packets sent */
+    uint32_t ping_count;       /**< PING packets received */
+    uint32_t pong_count;       /**< PONG packets sent */
+    uint32_t cmd_count;        /**< CMD packets received */
+} sfu_stats_t;
+
+/**
+ * @brief Get a snapshot of the SFU counters
+ *
+ * @param[out] out  Receives a copy of the current counter values
+ */
+void SFU_GetStats(sfu_stats_t *out);
 
 /* ------------------------------------------------------------------ */
 /*  Reliability API                                                  */

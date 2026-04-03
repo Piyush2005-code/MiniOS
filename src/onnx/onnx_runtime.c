@@ -1738,26 +1738,28 @@ Status ONNX_Runtime_Inference(ONNX_InferenceContext* ctx,
     
     ONNX_Graph* graph = ctx->graph;
     
-    /* Validate inputs */
-    if (num_inputs != graph->num_inputs) {
-        HAL_UART_PutString("[ONNX] Error: Expected ");
-        HAL_UART_PutDec(graph->num_inputs);
-        HAL_UART_PutString(" inputs, got ");
-        HAL_UART_PutDec(num_inputs);
-        HAL_UART_PutString("\n");
-        return STATUS_ERROR_INVALID_ARGUMENT;
-    }
-    
-    /* Copy input data to graph input tensors */
-    for (uint32_t i = 0; i < num_inputs; i++) {
-        ONNX_Tensor* graph_input = graph->inputs[i];
-        ONNX_Tensor* user_input = inputs[i];
-        
-        if (graph_input->data_size != user_input->data_size) {
-            return STATUS_ERROR_SHAPE_MISMATCH;
+    if (inputs) {
+        /* Validate inputs */
+        if (num_inputs != graph->num_inputs) {
+            HAL_UART_PutString("[ONNX] Error: Expected ");
+            HAL_UART_PutDec(graph->num_inputs);
+            HAL_UART_PutString(" inputs, got ");
+            HAL_UART_PutDec(num_inputs);
+            HAL_UART_PutString("\n");
+            return STATUS_ERROR_INVALID_ARGUMENT;
         }
         
-        mem_copy(graph_input->data, user_input->data, user_input->data_size);
+        /* Copy input data to graph input tensors */
+        for (uint32_t i = 0; i < num_inputs; i++) {
+            ONNX_Tensor* graph_input = graph->inputs[i];
+            ONNX_Tensor* user_input = inputs[i];
+            
+            if (graph_input->data_size != user_input->data_size) {
+                return STATUS_ERROR_SHAPE_MISMATCH;
+            }
+            
+            mem_copy(graph_input->data, user_input->data, user_input->data_size);
+        }
     }
     
     /* Execute all nodes in scheduled order */
@@ -1806,25 +1808,79 @@ Status ONNX_Runtime_Inference(ONNX_InferenceContext* ctx,
         THREAD_Yield();
     }
     
-    /* Copy outputs */
-    if (num_outputs != graph->num_outputs) {
-        HAL_UART_PutString("[ONNX] Error: Expected ");
-        HAL_UART_PutDec(graph->num_outputs);
-        HAL_UART_PutString(" outputs, got ");
-        HAL_UART_PutDec(num_outputs);
-        HAL_UART_PutString("\n");
-        return STATUS_ERROR_INVALID_ARGUMENT;
-    }
-    
-    for (uint32_t i = 0; i < num_outputs; i++) {
-        ONNX_Tensor* graph_output = graph->outputs[i];
-        outputs[i] = graph_output;
+    if (outputs) {
+        /* Copy outputs */
+        if (num_outputs != graph->num_outputs) {
+            HAL_UART_PutString("[ONNX] Error: Expected ");
+            HAL_UART_PutDec(graph->num_outputs);
+            HAL_UART_PutString(" outputs, got ");
+            HAL_UART_PutDec(num_outputs);
+            HAL_UART_PutString("\n");
+            return STATUS_ERROR_INVALID_ARGUMENT;
+        }
+        
+        for (uint32_t i = 0; i < num_outputs; i++) {
+            ONNX_Tensor* graph_output = graph->outputs[i];
+            outputs[i] = graph_output;
+        }
     }
     
     ctx->total_inferences++;
     
     HAL_UART_PutString("[ONNX] Inference complete!\n");
     
+    return STATUS_OK;
+}
+
+Status ONNX_Runtime_InferenceSimple(ONNX_InferenceContext* ctx,
+                                      const void** input_data,
+                                      uint64_t* input_sizes,
+                                      uint32_t num_inputs,
+                                      void** output_data,
+                                      uint64_t* output_sizes,
+                                      uint32_t num_outputs)
+{
+    if (!ctx || !ctx->graph || !input_data || !input_sizes || !output_data || !output_sizes) {
+        return STATUS_ERROR_INVALID_ARGUMENT;
+    }
+
+    ONNX_Graph* graph = ctx->graph;
+
+    if (num_inputs != graph->num_inputs) {
+        return STATUS_ERROR_INVALID_ARGUMENT;
+    }
+
+    /* Copy input data to graph input tensors */
+    for (uint32_t i = 0; i < num_inputs; i++) {
+        ONNX_Tensor* in_t = graph->inputs[i];
+        if (input_sizes[i] > in_t->data_size) {
+            return STATUS_ERROR_SHAPE_MISMATCH;
+        }
+        mem_copy(in_t->data, input_data[i], input_sizes[i]);
+    }
+
+    /* Run full inference */
+    Status status = ONNX_Runtime_Inference(ctx, NULL, 0, NULL, 0);
+    /* 
+     * Note: We pass NULL/0/NULL/0 to ONNX_Runtime_Inference because it 
+     * already has a path that copies inputs if they are provided, but 
+     * we've already done the copy above to the graph's internal tensors.
+     * We need to modify ONNX_Runtime_Inference slightly to allow this 
+     * or handle the copy there. 
+     * Currently ONNX_Runtime_Inference (line 1742) checks num_inputs.
+     */
+
+    if (status != STATUS_OK) return status;
+
+    /* Copy output data from graph output tensors */
+    uint32_t n_out = (num_outputs < graph->num_outputs) ? num_outputs : graph->num_outputs;
+    for (uint32_t i = 0; i < n_out; i++) {
+        ONNX_Tensor* out_t = graph->outputs[i];
+        uint64_t copy_size = (output_sizes[i] < out_t->data_size) ? output_sizes[i] : out_t->data_size;
+        mem_copy(output_data[i], out_t->data, copy_size);
+        output_sizes[i] = copy_size;
+    }
+
     return STATUS_OK;
 }
 

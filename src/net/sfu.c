@@ -75,6 +75,10 @@ static sfu_inflight_t sfu_inflight[SFU_MAX_INFLIGHT];
 
 static void (*sfu_timeout_cb)(uint32_t req_id) = (void(*)(uint32_t))0;
 static sfu_infer_handler_t sfu_infer_handler = (sfu_infer_handler_t)0;
+static sfu_cmd_handler_t   sfu_cmd_handler   = (sfu_cmd_handler_t)0;
+
+/* Runtime statistics */
+static sfu_stats_t sfu_stats;
 
 /* ------------------------------------------------------------------ */
 /*  Internal: Timing helpers                                         */
@@ -138,6 +142,8 @@ static int sfu_is_known_type(uint8_t msg_type)
         case SFU_MSG_NACK:
         case SFU_MSG_PING:
         case SFU_MSG_PONG:
+        case SFU_MSG_CMD:
+        case SFU_MSG_CMD_RESPONSE:
         case SFU_MSG_ERROR:
             return 1;
         default:
@@ -288,7 +294,14 @@ int SFU_SendRaw(uint32_t dst_ip, uint16_t dst_port,
         return -1;
     }
 
-    return UDP_Send(dst_ip, dst_port, SFU_PORT, sfu_tx_buf, out_len);
+    int ret = UDP_Send(dst_ip, dst_port, SFU_PORT, sfu_tx_buf, out_len);
+    if (ret == 0) {
+        sfu_stats.tx_packets++;
+        sfu_stats.tx_bytes += payload_len;
+        if (msg_type == SFU_MSG_PONG)    sfu_stats.pong_count++;
+        if (msg_type == SFU_MSG_INFER_RESPONSE) sfu_stats.infer_responses++;
+    }
+    return ret;
 }
 
 /* ------------------------------------------------------------------ */
@@ -336,6 +349,17 @@ void SFU_SetInferHandler(sfu_infer_handler_t h)
     sfu_infer_handler = h;
 }
 
+void SFU_SetCmdHandler(sfu_cmd_handler_t h)
+{
+    sfu_cmd_handler = h;
+}
+
+void SFU_GetStats(sfu_stats_t *out)
+{
+    if (!out) return;
+    *out = sfu_stats;
+}
+
 /* ------------------------------------------------------------------ */
 /*  SFU_OnReceive                                                    */
 /* ------------------------------------------------------------------ */
@@ -367,18 +391,38 @@ void SFU_OnReceive(uint32_t src_ip, uint16_t src_port,
     HAL_UART_PutDec(payload_len);
     HAL_UART_PutString("\n");
 
+    /* Count valid received packet */
+    sfu_stats.rx_packets++;
+    sfu_stats.rx_bytes += payload_len;
+
     switch (hdr.msg_type) {
 
         case SFU_MSG_PING:
+            sfu_stats.ping_count++;
             SFU_SendPong(src_ip, src_port, hdr.req_id);
             break;
 
         case SFU_MSG_INFER_REQUEST:
+            sfu_stats.infer_requests++;
             /* Immediately ACK the request payload */
             SFU_SendRaw(src_ip, src_port, SFU_MSG_ACK, hdr.req_id, (uint8_t *)0, 0u);
             /* Dispatch to infer handler if registered */
             if (sfu_infer_handler) {
                 sfu_infer_handler(src_ip, src_port, hdr.req_id, payload, payload_len);
+            }
+            break;
+
+        case SFU_MSG_CMD:
+            sfu_stats.cmd_count++;
+            if (sfu_cmd_handler && payload_len > 0) {
+                /* Ensure null-termination in a local buffer */
+                static char cmd_buf[256];
+                uint16_t copy_len = payload_len < 255 ? payload_len : 255;
+                for (uint16_t i = 0; i < copy_len; i++) {
+                    cmd_buf[i] = (char)payload[i];
+                }
+                cmd_buf[copy_len] = '\0';
+                sfu_cmd_handler(src_ip, src_port, hdr.req_id, cmd_buf, copy_len);
             }
             break;
 

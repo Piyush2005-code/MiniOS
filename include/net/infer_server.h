@@ -1,6 +1,13 @@
 /**
  * @file infer_server.h
- * @brief SFU Inference Server hook
+ * @brief SFU Inference Server — model management and request handling
+ *
+ * Supports loading any .onnx model from /storage via the CMD channel:
+ *   LIST_MODELS         → lists all .onnx files in /storage
+ *   SELECT_MODEL <name> → loads and activates the named model
+ *   GET_MODEL           → returns the active model name
+ *
+ * Inference is then dispatched to whichever model is currently active.
  */
 
 #ifndef MINIOS_NET_INFER_SERVER_H
@@ -8,39 +15,58 @@
 
 #include "types.h"
 
+/* Max model name length (without path prefix or .onnx suffix) */
+#define INFER_MODEL_NAME_MAX  64
+
 /**
- * @brief Initialize the Inference Server
+ * @brief Initialize the inference server.
  *
- * Registers INFER_OnRequest with the SFU layer and
- * prepares static infer buffers.
+ * Registers INFER_OnRequest and INFER_OnCmd with SFU layer.
+ * Default active model is "tiny_mlp" (first available .onnx in /storage).
  */
 void INFER_Init(void);
 
 /**
- * @brief Callback for incoming INFER_REQUEST packets
- *
- * Extracts the payload (array of floats), passes it to the ONNX
- * inference engine, and sends the response back using SFU_SendRaw.
- *
- * @param[in] src_ip        Sender IP
- * @param[in] src_port      Sender UDP port
- * @param[in] req_id        SFU request ID to reply to
- * @param[in] payload       Raw packet payload bytes
- * @param[in] payload_len   Payload size in bytes
+ * @brief Inference request callback (INFER_REQUEST packets).
  */
 void INFER_OnRequest(uint32_t src_ip, uint16_t src_port,
                      uint32_t req_id,
                      uint8_t *payload, uint16_t payload_len);
 
 /**
- * @brief Send an error response back to the client
- *
- * @param[in] dst_ip        Receiver IP
- * @param[in] dst_port      Receiver UDP port
- * @param[in] req_id        Original request ID that failed
- * @param[in] error_code    Error reason code to serialize
+ * @brief CMD channel handler (LIST_MODELS / SELECT_MODEL / GET_MODEL).
+ */
+void INFER_OnCmd(uint32_t src_ip, uint16_t src_port,
+                 uint32_t req_id,
+                 const char *cmd, uint16_t cmd_len);
+
+/**
+ * @brief Send an error response.
  */
 void INFER_SendError(uint32_t dst_ip, uint16_t dst_port,
                      uint32_t req_id, uint32_t error_code);
+
+/**
+ * @brief Shell command: list available .onnx models in /storage.
+ */
+void INFER_ListModels(void);
+
+/**
+ * @brief Shell command: select an active model by filename stem.
+ *
+ * @param name  Model stem, e.g. "tiny_mlp" (without .onnx and without path)
+ * @return 0 on success, -1 if model not found or load failed
+ */
+int INFER_SelectModel(const char *name);
+
+/**
+ * @brief Return the currently active model name (read-only).
+ */
+const char *INFER_GetActiveModel(void);
+
+/**
+ * @brief Register ONNX-related shell commands (models, model, infer).
+ */
+void INFER_RegisterShellCommands(void);
 
 #endif /* MINIOS_NET_INFER_SERVER_H */
