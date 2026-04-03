@@ -38,6 +38,8 @@ SFU_MSG_ACK            = 0x03
 SFU_MSG_NACK           = 0x04
 SFU_MSG_PING           = 0x05
 SFU_MSG_PONG           = 0x06
+SFU_MSG_CMD            = 0x07
+SFU_MSG_CMD_RESPONSE   = 0x08
 SFU_MSG_ERROR          = 0x10
 
 _MSG_TYPE_NAMES = {
@@ -47,6 +49,8 @@ _MSG_TYPE_NAMES = {
     SFU_MSG_NACK:           "NACK",
     SFU_MSG_PING:           "PING",
     SFU_MSG_PONG:           "PONG",
+    SFU_MSG_CMD:            "CMD",
+    SFU_MSG_CMD_RESPONSE:   "CMD_RESPONSE",
     SFU_MSG_ERROR:          "ERROR",
 }
 
@@ -429,6 +433,45 @@ class SFUClient:
             )
 
         return np.frombuffer(resp_bytes, dtype="<f4").copy()
+
+    def cmd(self, command: str) -> str:
+        """Send a text-based command and return the string response.
+
+        Parameters
+        ----------
+        command : str
+            The command string (e.g. "LIST_MODELS").
+
+        Returns
+        -------
+        str
+            The text response from miniOS.
+
+        Raises
+        ------
+        RuntimeError
+            If miniOS returns an ERROR or NACK.
+        TimeoutError
+            If no response arrives within timeout × retries.
+        """
+        payload = command.encode("ascii")
+        rsp = self._send_recv(SFU_MSG_CMD, payload)
+        hdr = rsp["header"]
+
+        if hdr["msg_type"] == SFU_MSG_ERROR:
+            msg = rsp["payload"].decode("ascii", errors="replace").strip("\x00")
+            raise RuntimeError(f"miniOS returned ERROR: {msg}" if msg else "miniOS returned ERROR")
+
+        if hdr["msg_type"] != SFU_MSG_CMD_RESPONSE:
+            # Check for NACK (common if cmd is unknown)
+            if hdr["msg_type"] == SFU_MSG_NACK:
+                raise RuntimeError(f"miniOS NACKed command: {command!r}")
+            raise RuntimeError(
+                f"Unexpected msg_type 0x{hdr['msg_type']:02X} "
+                f"(expected CMD_RESPONSE 0x{SFU_MSG_CMD_RESPONSE:02X})"
+            )
+
+        return rsp["payload"].decode("ascii", errors="replace").strip("\x00")
 
     def close(self) -> None:
         """Close the underlying UDP socket."""

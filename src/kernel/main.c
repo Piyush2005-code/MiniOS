@@ -36,6 +36,7 @@
 #include "net/udp.h"
 #include "net/sfu.h"
 #include "net/infer_server.h"
+#include "net/net_cmds.h"
 
 /* ------------------------------------------------------------------ */
 /*  External symbols                                                   */
@@ -327,6 +328,7 @@ void kernel_main(void)
     UDP_Init();
     SFU_Init();      /* binds port 9000, replaces debug handler */
     SFU_SelfTest();  /* serialize → deserialize round-trip check */
+    NET_RegisterCommands(); /* Registers netstat, netlog, netlive */
     INFER_Init();    /* hooks INFER_OnRequest for SFU inference */
     HAL_UART_PutString("[BOOT] Network stack ready\n");
 
