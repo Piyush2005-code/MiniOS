@@ -1,7 +1,0 @@
-
-=== Starting QEMU ===
-    Press Ctrl+A then X to exit
-
-Starting MiniOS in QEMU (Ctrl+A then X to exit)...
-qemu-system-aarch64: -netdev user,id=net0,hostfwd=udp::9000-:9000: Could not set up host forwarding rule 'udp::9000-:9000'
-make: *** [Makefile:166: run] Error 1
