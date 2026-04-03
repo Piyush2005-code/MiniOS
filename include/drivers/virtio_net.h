@@ -39,11 +39,16 @@
 #define VIRTIO_MMIO_VERSION          0x004   /**< Version (1 = legacy, 2 = modern) */
 #define VIRTIO_MMIO_DEVICE_ID        0x008   /**< Device type (1 = net) */
 #define VIRTIO_MMIO_VENDOR_ID        0x00C   /**< Vendor ID */
-#define VIRTIO_MMIO_DEVICE_FEATURES  0x010   /**< Device feature bits (read) */
-#define VIRTIO_MMIO_DRIVER_FEATURES  0x020   /**< Driver feature bits (write) */
+#define VIRTIO_MMIO_DEVICE_FEATURES      0x010   /**< Device feature bits (read) */
+#define VIRTIO_MMIO_DEVICE_FEATURES_SEL  0x014   /**< Device feature word selection (write) */
+#define VIRTIO_MMIO_DRIVER_FEATURES      0x020   /**< Driver feature bits (write) */
+#define VIRTIO_MMIO_DRIVER_FEATURES_SEL  0x024   /**< Driver feature word selection (write) */
+#define VIRTIO_MMIO_GUEST_PAGE_SIZE      0x028   /**< Guest page size (legacy write) */
 #define VIRTIO_MMIO_QUEUE_SEL        0x030   /**< Queue selector (write) */
 #define VIRTIO_MMIO_QUEUE_NUM_MAX    0x034   /**< Max queue size (read) */
 #define VIRTIO_MMIO_QUEUE_NUM        0x038   /**< Queue size to use (write) */
+#define VIRTIO_MMIO_QUEUE_ALIGN      0x03C   /**< Used ring alignment (legacy write) */
+#define VIRTIO_MMIO_QUEUE_PFN        0x040   /**< Queue physical frame number (legacy read/write) */
 #define VIRTIO_MMIO_QUEUE_READY      0x044   /**< Queue ready flag (write 1) */
 #define VIRTIO_MMIO_QUEUE_NOTIFY     0x050   /**< Queue notification (write) */
 #define VIRTIO_MMIO_INTERRUPT_STATUS 0x060   /**< Interrupt reason bitmask (read) */
@@ -158,7 +163,10 @@ typedef struct __attribute__((packed)) {
  *
  * Prepended to every TX and RX frame. Zero all fields for basic
  * (non-GSO, non-checksum) operation.
- * Size: 10 bytes (legacy mode, num_buffers present).
+ * Size: 10 bytes (legacy mode without VIRTIO_NET_F_MRG_RXBUF).
+ *
+ * NOTE: The num_buffers field is ONLY present when MRG_RXBUF is
+ *       negotiated. We do not negotiate it, so it is omitted.
  */
 typedef struct __attribute__((packed)) {
     uint8_t  flags;        /**< VIRTIO_NET_HDR_F_* flags (0 = none) */
@@ -167,7 +175,6 @@ typedef struct __attribute__((packed)) {
     uint16_t gso_size;     /**< GSO: desired MSS */
     uint16_t csum_start;   /**< Checksum start offset */
     uint16_t csum_offset;  /**< Checksum field offset within csum_start */
-    uint16_t num_buffers;  /**< Number of merged RX buffers (legacy: 1) */
 } VirtioNetHdr;
 
 /* ------------------------------------------------------------------ */

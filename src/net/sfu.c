@@ -488,6 +488,10 @@ void SFU_OnNack(uint32_t req_id, uint32_t dst_ip, uint16_t dst_port)
 
 void SFU_Tick(void)
 {
+    /* Periodically poll VirtIO-Net in case interrupts are missing */
+    extern void VNIC_Poll(void);
+    VNIC_Poll();
+
     uint64_t now = SFU_GetMs();
 
     for (int i = 0; i < SFU_MAX_INFLIGHT; i++) {

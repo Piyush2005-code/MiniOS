@@ -1,0 +1,796 @@
+Starting MiniOS in QEMU (Ctrl+A then X to exit)...
+
+Hello, Piyush!!======================================
+  MiniOS v0.2 - ARM64 Unikernel
+  ML Inference with Multithreading
+======================================
+
+[BOOT] UART initialized: OK
+[BOOT] Running at EL1
+[BOOT] Installing exception vectors...
+[BOOT] Exception vectors installed
+[BOOT] Initializing MMU...
+[MMU ] Building page tables...
+[MMU ] Page table at: 0x401DA000
+[MMU ] MMU and caches enabled
+[BOOT] MMU status: OK
+[BOOT] Initializing memory manager...
+[KMEM] Heap initialized: 0x40AAF000 - 0x5FFB0000 (513028 KB)
+[BOOT] KMEM status: OK
+[BOOT] Heap free: 513028 KB
+[BOOT] Initializing GIC...
+[GIC ] Initializing GICv2...
+[GIC ] Max IRQs: 288
+[GIC ] GICv2 initialized
+[BOOT] GIC status: OK
+[BOOT] Initializing network stack...
+[VNIC] Initializing VirtIO-Net driver...
+[VNIC] Scanning MMIO window for virtio-net...
+[VNIC] Found virtio-net at 0x0a003e00, slot 31 version 1, IRQ 79
+[VNIC] Feature negotiation OK (dev_features=0x39bf8064 drv_features=0x00000020)
+[VNIC]   Queue 0: desc=0x40aaf000 avail=0x40aaf100 used=0x40ab0000
+[VNIC]   Queue 1: desc=0x40ab1000 avail=0x40ab1100 used=0x40ab2000
+[VNIC] Device status set to DRIVER_OK
+[VNIC] MAC: 52:54:00:12:34:56
+[VNIC] IRQ 79 enabled
+[VNIC] VirtIO-Net initialized successfully
+[ETH ] init ok, MAC 52:54:00:12:34:56
+[IPV4] init ok
+[UDP ] init ok
+[UDP ] bound port 9000
+[SFU ] init ok, listening on port 9000
+[SFU ] running self-test...
+[SFU ] checksum mismatch: got 0x89c3 expected 0xc260
+[SFU ] selftest PASSED
+[INFER] server ready
+[BOOT] Network stack ready
+[BOOT] Initializing timer...
+[TMR ] Timer initialized: freq=62 MHz, tick=10 ms
+[BOOT] Timer status: OK  (10ms tick)
+[BOOT] Initializing scheduler...
+[SCHED] Scheduler initialized
+[BOOT] Scheduler status: OK
+[BOOT] Creating threads...
+[THRD] Created 'inference' (id=1, prio=1, stack=8192)
+[BOOT]   inference: OK
+[THRD] Created 'onnx' (id=2, prio=1, stack=8192)
+[BOOT]   onnx     : OK
+[THRD] Created 'monitor' (id=3, prio=2, stack=8192)
+[BOOT]   monitor  : OK
+[THRD] Created 'test' (id=4, prio=1, stack=8192)
+[BOOT]   test     : OK
+[DAEM ] Registering background daemons...
+[THRD] Created 'clock' (id=5, prio=2, stack=8192)
+[THRD] Created 'memwatch' (id=6, prio=2, stack=8192)
+[THRD] Created 'rtmon' (id=7, prio=2, stack=8192)
+[DAEM ] All daemons registered (clock, memwatch, rtmon)
+[DAEM ] Built-in commands registered
+[THRD] Created 'shell' (id=8, prio=2, stack=8192)
+[SHELL] Shell daemon registered
+[DAEM ] All subsystems ready
+[BOOT] Daemons  : OK
+[BOOT] Initializing ULFS file system...
+[ULFS] NVRAM Store Recovered!
+[ULFS] Initialized Dual-Store FS
+[BOOT] ULFS status: OK
+[BOOT] FS cmds  : OK
+[BOOT] ONNX cmds: OK
+[BOOT] Initializing NVRAM storage...
+[STOR ] Checking NVRAM...
+[STOR ] NVRAM verified
+[BOOT] NVRAM status: OK
+[INITFS] Populating /storage (9 files)...
+[INITFS] Done: 0 written, 9 skipped
+[BOOT] InitFS  : OK
+[BOOT] Enabling interrupts...
+[ARP ] learned host MAC 52:55:0a:00:02:02
+[ARP ] received ARP request for our IP — replying
+[ARP ] reply sent
+[SFU ] RX: invalid packet (bad magic/version/type) — NACK
+[SFU ] NACK → req_id=0x00000000
+[SFU ] RX msg_type=0x0004 req_id=0x00000000 plen=0
+
+[BOOT] ==============================
+[BOOT]  Starting scheduler
+[BOOT]  Threads: 9
+[BOOT] ==============================
+
+[SCHED] Starting scheduler
+[INFER] Inference thread started
+[INFER] Iteration 1/5  (50 ms)
+[ONNX ] ONNX demo thread started
+
+========================================
+   ONNX Model Loader Demo
+========================================
+
+
+--- Running HandCraftedTest ---
+[KMEM] Arena created: 64 KB at 0x40F1CAC0
+[ONNX] Loading protobuf format...
+  Data size: 66 bytes
+  IR version: 7
+  Graph size: 62 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: B
+[PARSE] Found raw_data len: 0xC
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 66 / expected end: 66
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Graph validation: OK
+[ONNX] Starting inference...
+  Executing: add (Add)
+--- ONNX TEST SUITE ---
+[KMEM] Arena created: 8 KB at 0x40F2DB00
+[PASS] ut_add_001
+[KMEM] Arena created: 8 KB at 0x40F2FB40
+[PASS] ut_sub_001
+[KMEM] Arena created: 8 KB at 0x40F31B80
+[PASS] ut_mul_001
+[KMEM] Arena created: 8 KB at 0x40F33BC0
+[PASS] ut_div_001
+[KMEM] Arena created: 8 KB at 0x40F35C00
+[PASS] ut_matmul_001
+[KMEM] Arena created: 8 KB at 0x40F37C40
+[PASS] ut_relu_001
+[KMEM] Arena created: 8 KB at 0x40F39C80
+[PASS] ut_sigmoid_001
+[KMEM] Arena created: 8 KB at 0x40F3BCC0
+[PASS] ut_tanh_001
+[KMEM] Arena created: 8 KB at 0x40F3DD00
+[PASS] ut_softmax_001
+[KMEM] Arena created: 8 KB at 0x40F3FD40
+[PASS] ut_leakyrelu_001
+[KMEM] Arena created: 8 KB at 0x40F41D80
+[PASS] ut_abs_001
+[KMEM] Arena created: 8 KB at 0x40F43DC0
+[PASS] ut_neg_001
+[KMEM] Arena created: 8 KB at 0x40F45E00
+[PASS] ut_clip_001
+[KMEM] Arena created: 8 KB at 0x40F47E40
+[PASS] ut_identity_001
+[KMEM] Arena created: 8 KB at 0x40F49E80
+[PASS] ut_exp_001
+[KMEM] Arena created: 8 KB at 0x40F4BEC0
+[PASS] ut_log_001
+[KMEM] Arena created: 8 KB at 0x40F4DF00
+[PASS] ut_sqrt_001
+[KMEM] Arena created: 8 KB at 0x40F4FF40
+[PASS] ut_ceil_001
+[KMEM] Arena created: 8 KB at 0x40F51F80
+[PASS] ut_floor_001
+[KMEM] Arena created: 8 KB at 0x40F53FC0
+[PASS] ut_sin_001
+[KMEM] Arena created: 8 KB at 0x40F56000
+[PASS] ut_cos_001
+[KMEM] Arena created: 8 KB at 0x40F58040
+[PASS] ut_reshape_001
+[KMEM] Arena created: 8 KB at 0x40F5A080
+[PASS] ut_flatten_001
+[KMEM] Arena created: 8 KB at 0x40F5C0C0
+[PASS] ut_transpose_001
+[KMEM] Arena created: 8 KB at 0x40F5E100
+[PASS] ut_batchnorm_001
+[KMEM] Arena created: 8 KB at 0x40F60140
+[PASS] ut_gemm_001
+[KMEM] Arena created: 8 KB at 0x40F62180
+[PASS] ut_concat_001
+[KMEM] Arena created: 8 KB at 0x40F641C0
+[PASS] ut_gavgpool_001
+[KMEM] Arena created: 8 KB at 0x40F66200
+[PASS] ut_squeeze_001
+[KMEM] Arena created: 8 KB at 0x40F68240
+[PASS] ut_unsqueeze_001
+[KMEM] Arena created: 8 KB at 0x40F6A280
+[PASS] ut_cast_001
+[KMEM] Arena created: 8 KB at 0x40F6C2C0
+[PASS] ut_reducesum_001
+[KMEM] Arena created: 8 KB at 0x40F6E300
+[PASS] ut_reducemean_001
+[KMEM] Arena created: 8 KB at 0x40F70340
+[PASS] ut_reducemax_001
+[KMEM] Arena created: 8 KB at 0x40F72380
+[PASS] ut_reducemin_001
+[KMEM] Arena created: 8 KB at 0x40F743C0
+[PASS] ut_conv_001
+[KMEM] Arena created: 8 KB at 0x40F76400
+[PASS] ut_maxpool_001
+[KMEM] Arena created: 8 KB at 0x40F78440
+[PASS] ut_avgpool_001
+[KMEM] Arena created: 8 KB at 0x40F7A480
+[ONNX] Loading protobuf format...
+  Data size: 82 bytes
+  IR version: 12
+  Graph size: 61 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 2 tensors
+[ONNX] Reader pos: 78 / expected end: 78
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Relu)
+[INFER] Iteration 2/5  (50 ms)
+[ONNX] Inference complete!
+Result: [3.000, 5.000, 7.000]
+[ONNX] Inference complete!
+[PASS] it_infer_001
+[KMEM] Arena created: 8 KB at 0x40F7C4C0
+[ONNX] Loading protobuf format...
+  Data size: 100 bytes
+  IR version: 12
+  Graph size: 79 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 96 / expected end: 96
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Add)
+[INFER] Iteration 3/5  (50 ms)
+
+--- Running SimpleAddPython ---
+[KMEM] Arena created: 64 KB at 0x40FD8EC0
+[ONNX] Loading protobuf format...
+  Data size: 120 bytes
+  IR version: 12
+  Graph size: 104 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0xC
+[PARSE] Tensor name: B
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 116 / expected end: 116
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Graph validation: OK
+[ONNX] Starting inference...
+  Executing: add_node (Add)
+[ONNX] Inference complete!
+[PASS] it_infer_002
+[KMEM] Arena created: 8 KB at 0x40FE9F00
+[ONNX] Loading protobuf format...
+  Data size: 141 bytes
+  IR version: 12
+  Graph size: 120 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x4
+[PARSE] Tensor name: Two
+[ONNX] Graph parsed: 2 nodes, 5 tensors
+[ONNX] Reader pos: 137 / expected end: 137
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Add)
+[INFER] Iteration 4/5  (50 ms)
+[ONNX] Inference complete!
+Result: [3.000, 5.000, 7.000]
+  Executing:  (Mul)
+[INFER] Iteration 5/5  (50 ms)
+
+--- Running ComplexPython ---
+[KMEM] Arena created: 64 KB at 0x41046900
+[ONNX] Loading protobuf format...
+  Data size: 244 bytes
+  IR version: 12
+  Graph size: 227 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x4
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x30
+[PARSE] Tensor name: W
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0xC
+[PARSE] Tensor name: B
+[ONNX] Graph parsed: 3 nodes, 6 tensors
+[ONNX] Reader pos: 240 / expected end: 240
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Graph validation: OK
+[ONNX] Starting inference...
+  Executing: matmul_node (MatMul)
+[ONNX] Inference complete!
+[PASS] it_infer_003
+[ONNX] Starting inference...
+  Executing:  (Add)
+[INFER] Inference complete
+[THRD] Thread 'inference' exiting
+  Executing: add_node (Add)
+  Executing:  (Mul)
+  Executing: relu_node (Relu)
+[ONNX] Inference complete!
+[PASS] it_infer_004
+[PASS] it_timer_001
+[KMEM] Arena created: 8 KB at 0x41057940
+[ONNX] Loading protobuf format...
+  Data size: 100 bytes
+  IR version: 12
+  Graph size: 79 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 96 / expected end: 96
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[PASS] ct_parse_001
+[KMEM] Arena created: 8 KB at 0x41059980
+[ONNX] Loading protobuf format...
+  Data size: 100 bytes
+  IR version: 12
+  Graph size: 79 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 96 / expected end: 96
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[PASS] ct_parse_002
+[KMEM] Arena created: 8 KB at 0x4105B9C0
+[ONNX] Loading protobuf format...
+  Data size: 133 bytes
+  IR version: 12
+  Graph size: 112 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x2
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x18
+[PARSE] Tensor name: Y
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 129 / expected end: 129
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[PASS] ct_graph_001
+[SUMMARY] 46/46 passed
+[THRD] Thread 'test' exiting
+[ONNX] Inference complete!
+Result: [1.300, 1.500, 0.800]
+
+========================================
+
+[ONNX ] ONNX demo thread complete
+[THRD] Thread 'onnx' exiting
+[MON  ] Monitor thread started
+[MON  ] tick=0  heap 5818KB / 513028KB  threads=9  uptime=300ms
+[CLOCK] Wall-clock daemon started (1 s period)
+[MEMW ] Memory watchdog started (500 ms period)
+[RTMON] Runtime monitor started (2 s period)
+
+  ========================================
+   MiniOS v0.2  |  type 'help' for cmds  
+  ========================================
+
+miniOS> [SFU ] RX msg_type=0x0005 req_id=0x00000000 plen=0
+[SFU ] PONG → req_id=0x00000000
+[SFU ] RX msg_type=0x0005 req_id=0x00000001 plen=0
+[SFU ] PONG → req_id=0x00000001
+[SFU ] RX msg_type=0x0001 req_id=0x00000002 plen=16
+[INFER] req 2 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000003 plen=16
+[INFER] req 3 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000004 plen=16
+[INFER] req 4 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000005 plen=16
+[INFER] req 5 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000006 plen=16
+[INFER] req 6 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000007 plen=16
+[INFER] req 7 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000008 plen=16
+[INFER] req 8 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000009 plen=16
+[INFER] req 9 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000a plen=16
+[INFER] req 10 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000b plen=16
+[INFER] req 11 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000c plen=16
+[INFER] req 12 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000d plen=16
+[INFER] req 13 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000e plen=16
+[INFER] req 14 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000f plen=16
+[INFER] req 15 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000010 plen=16
+[INFER] req 16 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000011 plen=16
+[INFER] req 17 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000012 plen=16
+[INFER] req 18 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000013 plen=16
+[INFER] req 19 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000014 plen=16
+[INFER] req 20 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000015 plen=16
+[INFER] req 21 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000016 plen=16
+[INFER] req 22 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000017 plen=16
+[INFER] req 23 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000018 plen=16
+[INFER] req 24 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000019 plen=16
+[INFER] req 25 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001a plen=16
+[INFER] req 26 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001b plen=16
+[INFER] req 27 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001c plen=16
+[INFER] req 28 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001d plen=16
+[INFER] req 29 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001e plen=16
+[INFER] req 30 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001f plen=16
+[INFER] req 31 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000020 plen=16
+[INFER] req 32 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000021 plen=16
+[INFER] req 33 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000022 plen=16
+[INFER] req 34 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000023 plen=16
+[INFER] req 35 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000024 plen=16
+[INFER] req 36 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000025 plen=16
+[INFER] req 37 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000026 plen=16
+[INFER] req 38 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000027 plen=16
+[INFER] req 39 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000028 plen=16
+[INFER] req 40 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000029 plen=16
+[INFER] req 41 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002a plen=16
+[INFER] req 42 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002b plen=16
+[INFER] req 43 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002c plen=16
+[INFER] req 44 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002d plen=16
+[INFER] req 45 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002e plen=16
+[INFER] req 46 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002f plen=16
+[INFER] req 47 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000030 plen=16
+[INFER] req 48 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000031 plen=16
+[INFER] req 49 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000032 plen=16
+[INFER] req 50 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000033 plen=16
+[INFER] req 51 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000034 plen=16
+[INFER] req 52 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000035 plen=16
+[INFER] req 53 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000036 plen=16
+[INFER] req 54 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000037 plen=16
+[INFER] req 55 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000038 plen=16
+[INFER] req 56 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000039 plen=16
+[INFER] req 57 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003a plen=16
+[INFER] req 58 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003b plen=16
+[INFER] req 59 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003c plen=16
+[INFER] req 60 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003d plen=16
+[INFER] req 61 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003e plen=16
+[INFER] req 62 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003f plen=16
+[INFER] req 63 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000040 plen=16
+[INFER] req 64 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000041 plen=16
+[INFER] req 65 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000042 plen=16
+[INFER] req 66 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000043 plen=16
+[INFER] req 67 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000044 plen=16
+[INFER] req 68 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000045 plen=16
+[INFER] req 69 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000046 plen=16
+[INFER] req 70 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000047 plen=16
+[INFER] req 71 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000048 plen=16
+[INFER] req 72 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000049 plen=16
+[INFER] req 73 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004a plen=16
+[INFER] req 74 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004b plen=16
+[INFER] req 75 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004c plen=16
+[INFER] req 76 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004d plen=16
+[INFER] req 77 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004e plen=16
+[INFER] req 78 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004f plen=16
+[INFER] req 79 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000050 plen=16
+[INFER] req 80 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000051 plen=16
+[INFER] req 81 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000052 plen=16
+[INFER] req 82 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000053 plen=16
+[INFER] req 83 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000054 plen=16
+[INFER] req 84 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000055 plen=16
+[INFER] req 85 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000056 plen=16
+[INFER] req 86 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000057 plen=16
+[INFER] req 87 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000058 plen=16
+[INFER] req 88 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000059 plen=16
+[INFER] req 89 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005a plen=16
+[INFER] req 90 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005b plen=16
+[INFER] req 91 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005c plen=16
+[INFER] req 92 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005d plen=16
+[INFER] req 93 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005e plen=16
+[INFER] req 94 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005f plen=16
+[INFER] req 95 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000060 plen=16
+[INFER] req 96 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000061 plen=16
+[INFER] req 97 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000062 plen=16
+[INFER] req 98 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000063 plen=16
+[INFER] req 99 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000064 plen=16
+[INFER] req 100 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000065 plen=16
+[INFER] req 101 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000066 plen=16
+[INFER] req 102 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000067 plen=4
+[INFER] req 103 done, 1 floats in, 1 floats out
+[SFU ] RX msg_type=0x0005 req_id=0x00000000 plen=0
+[SFU ] PONG → req_id=0x00000000
+[SFU ] RX msg_type=0x0005 req_id=0x00000001 plen=0
+[SFU ] PONG → req_id=0x00000001
+[SFU ] RX msg_type=0x0001 req_id=0x00000002 plen=16
+[INFER] req 2 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000003 plen=16
+[INFER] req 3 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000004 plen=16
+[INFER] req 4 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000005 plen=16
+[INFER] req 5 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000006 plen=16
+[INFER] req 6 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000007 plen=16
+[INFER] req 7 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000008 plen=16
+[INFER] req 8 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000009 plen=16
+[INFER] req 9 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000a plen=16
+[INFER] req 10 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000b plen=16
+[INFER] req 11 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000c plen=16
+[INFER] req 12 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000d plen=16
+[INFER] req 13 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000e plen=16
+[INFER] req 14 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000000f plen=16
+[INFER] req 15 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000010 plen=16
+[INFER] req 16 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000011 plen=16
+[INFER] req 17 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000012 plen=16
+[INFER] req 18 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000013 plen=16
+[INFER] req 19 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000014 plen=16
+[INFER] req 20 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000015 plen=16
+[INFER] req 21 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000016 plen=16
+[INFER] req 22 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000017 plen=16
+[INFER] req 23 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000018 plen=16
+[INFER] req 24 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000019 plen=16
+[INFER] req 25 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001a plen=16
+[INFER] req 26 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001b plen=16
+[INFER] req 27 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001c plen=16
+[INFER] req 28 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001d plen=16
+[INFER] req 29 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001e plen=16
+[INFER] req 30 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000001f plen=16
+[INFER] req 31 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000020 plen=16
+[INFER] req 32 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000021 plen=16
+[INFER] req 33 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000022 plen=16
+[INFER] req 34 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000023 plen=16
+[INFER] req 35 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000024 plen=16
+[INFER] req 36 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000025 plen=16
+[INFER] req 37 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000026 plen=16
+[INFER] req 38 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000027 plen=16
+[INFER] req 39 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000028 plen=16
+[INFER] req 40 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000029 plen=16
+[INFER] req 41 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002a plen=16
+[INFER] req 42 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002b plen=16
+[INFER] req 43 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002c plen=16
+[INFER] req 44 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002d plen=16
+[INFER] req 45 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002e plen=16
+[INFER] req 46 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000002f plen=16
+[INFER] req 47 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000030 plen=16
+[INFER] req 48 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000031 plen=16
+[INFER] req 49 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000032 plen=16
+[INFER] req 50 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000033 plen=16
+[INFER] req 51 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000034 plen=16
+[INFER] req 52 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000035 plen=16
+[INFER] req 53 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000036 plen=16
+[INFER] req 54 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000037 plen=16
+[INFER] req 55 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000038 plen=16
+[INFER] req 56 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000039 plen=16
+[INFER] req 57 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003a plen=16
+[INFER] req 58 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003b plen=16
+[INFER] req 59 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003c plen=16
+[INFER] req 60 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003d plen=16
+[INFER] req 61 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003e plen=16
+[INFER] req 62 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000003f plen=16
+[INFER] req 63 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000040 plen=16
+[INFER] req 64 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000041 plen=16
+[INFER] req 65 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000042 plen=16
+[INFER] req 66 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000043 plen=16
+[INFER] req 67 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000044 plen=16
+[INFER] req 68 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000045 plen=16
+[INFER] req 69 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000046 plen=16
+[INFER] req 70 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000047 plen=16
+[INFER] req 71 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000048 plen=16
+[INFER] req 72 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000049 plen=16
+[INFER] req 73 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004a plen=16
+[INFER] req 74 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004b plen=16
+[INFER] req 75 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004c plen=16
+[INFER] req 76 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004d plen=16
+[INFER] req 77 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004e plen=16
+[INFER] req 78 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000004f plen=16
+[INFER] req 79 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000050 plen=16
+[INFER] req 80 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000051 plen=16
+[INFER] req 81 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000052 plen=16
+[INFER] req 82 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000053 plen=16
+[INFER] req 83 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000054 plen=16
+[INFER] req 84 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000055 plen=16
+[INFER] req 85 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000056 plen=16
+[INFER] req 86 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000057 plen=16
+[INFER] req 87 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000058 plen=16
+[INFER] req 88 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000059 plen=16
+[INFER] req 89 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005a plen=16
+[INFER] req 90 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005b plen=16
+[INFER] req 91 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005c plen=16
+[INFER] req 92 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005d plen=16
+[INFER] req 93 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005e plen=16
+[INFER] req 94 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x0000005f plen=16
+[INFER] req 95 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000060 plen=16
+[INFER] req 96 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000061 plen=16
+[INFER] req 97 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000062 plen=16
+[INFER] req 98 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000063 plen=16
+[INFER] req 99 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000064 plen=16
+[INFER] req 100 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000065 plen=16
+[INFER] req 101 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000066 plen=16
+[INFER] req 102 done, 4 floats in, 4 floats out
+[SFU ] RX msg_type=0x0001 req_id=0x00000067 plen=4
+[INFER] req 103 done, 1 floats in, 1 floats out
+qemu-system-aarch64: terminating on signal 1 from pid 10997 (/usr/bin/zsh)
