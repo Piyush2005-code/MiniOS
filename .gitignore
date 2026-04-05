@@ -1,0 +1,15 @@
+build
+check_minios.sh 
+minios_code.txt
+qemu.log
+*.csv
+.DS_Store
+ARCHITECTURE_DIAGRAMS.md
+ProjectDocumentation.md
+PROJECT_DOCUMENTATION.md
+PROGRESS_REPORT.md
+BRANCH_PROGRESS_REPORT.md
+daemon_design.md
+implementation_plan.md
+implementation_plan_flash_img.md
+implementation_plan_mv_cp.md
