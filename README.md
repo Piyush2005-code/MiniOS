@@ -1,4 +1,4 @@
-# 🪐 MiniOS — ARM64 ML Inference Unikernel
+#  MiniOS — ARM64 ML Inference Unikernel
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
@@ -11,7 +11,7 @@ MiniOS is a specialized, industry-grade **unikernel operating system** engineere
 
 ---
 
-## 🚀 Key Features
+##  Key Features
 
 | Component | Industry-Grade Capability |
 |-----------|---------------------------|
@@ -24,7 +24,7 @@ MiniOS is a specialized, industry-grade **unikernel operating system** engineere
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 MiniOS follows a modular, layer-based architecture designed for low-latency hardware interaction.
 
@@ -69,7 +69,7 @@ graph TB
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 - **`src/boot/`**: AArch64 entry point, Exception Vector Table, and EL drop sequences.
 - **`src/hal/`**: Performance-tuned drivers for UART, GICv2, MMU, and Generic Timer.
@@ -80,7 +80,7 @@ graph TB
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Prerequisites
 - `aarch64-none-elf-gcc` (or `aarch64-elf-gcc`)
@@ -90,7 +90,7 @@ graph TB
 ### Build and Run
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/Piyush2005-code/MiniOS.git
+   git clone https://github.com/Piyush2005-code/MiniOS.git && git checkout release/v1.2
    cd MiniOS
    ```
 2. **Compile the kernel**:
@@ -100,6 +100,10 @@ graph TB
 3. **Launch in QEMU**:
    ```bash
    make run
+   ```
+4. **For navigating in the MiniOS**
+   ```bash
+   minios> help # This will give all the commands and their necessary documentation for further use.
    ```
 *Tips: Use `Ctrl+A` then `X` to exit QEMU.*
 
@@ -122,6 +126,10 @@ MiniOS development is guided by rigorous technical standards and academic resear
 
 For structural improvements, branch representation, or feature requests, please refer to the `PROJECT_DOCUMENTATION.md`. We welcome technical feedback from the OS development community.
 
-**Developed by the MiniOS Team.**  
+**Developed by the MiniOS Team.**\
+Piyush Singh Bhati\
+Aashma Yadav\
+Harshit Saini\
+Darpan Baviskar
+
 *Empowering Edge AI with Unikernel Efficiency.*
-oject
