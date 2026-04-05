@@ -376,6 +376,19 @@ void SFU_OnAck(uint32_t req_id);
 void SFU_OnNack(uint32_t req_id, uint32_t dst_ip, uint16_t dst_port);
 
 /**
+ * @brief Enable/disable periodic SFU tick processing.
+ *
+ * When disabled, SFU_Tick() returns immediately, skipping periodic
+ * virtio polling and reliable retransmission checks.
+ */
+void SFU_SetTickEnabled(bool enable);
+
+/**
+ * @brief Query whether SFU periodic tick processing is enabled.
+ */
+bool SFU_GetTickEnabled(void);
+
+/**
  * @brief Periodic tick for retransmissions and timeouts
  */
 void SFU_Tick(void);

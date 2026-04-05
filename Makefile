@@ -32,14 +32,20 @@ CFLAGS   = -std=c11 \
            -Wall \
            -Wextra \
            -Werror \
-           -O2 \
-           -mcpu=cortex-a53 \
+           -O3 \
+           -ffast-math \
+           -fno-math-errno \
+           -funroll-loops \
+           -fomit-frame-pointer \
+           -DNDEBUG \
+           -mcpu=cortex-a57 \
+           -mtune=cortex-a57 \
            -I$(INC_DIR) \
            -I$(GEN_DIR) \
-           -g
+           -DONNX_USE_OPENMP=OFF \
+           -DONNX_USE_BLAS=OFF
 
-ASFLAGS  = -mcpu=cortex-a53 \
-           -g
+ASFLAGS  = -mcpu=cortex-a57
 
 LDFLAGS  = -nostdlib \
            -T linker.ld
@@ -100,8 +106,9 @@ ALL_OBJS = $(ASM_OBJS) $(C_OBJS) $(GEN_OBJS)
 # ---- QEMU ----
 QEMU     = qemu-system-aarch64
 QEMU_FLAGS = -machine virt \
-             -cpu cortex-a53 \
-             -m 512M \
+             -cpu cortex-a57 \
+             -m 2048M \
+             -smp 1 \
              -nographic \
              -kernel $(TARGET_ELF) \
              -drive if=pflash,file=flash.img,format=raw,index=1 \

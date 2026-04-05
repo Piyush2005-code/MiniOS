@@ -22,10 +22,13 @@
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
 #include "kernel/daemon.h"
+#include "kernel/cmd.h"
+#include "kernel/shell.h"
 #include "kernel/ulfs.h"
 #include "kernel/fs_cmds.h"
 #include "kernel/storage.h"
 #include "kernel/initfs.h"
+#include "onnx/onnx_runtime.h"
 #include "onnx/onnx_loader_demo.h"
 #include "onnx/onnx_test.h"
 #include "onnx/onnx_cmds.h"
@@ -37,6 +40,10 @@
 #include "net/sfu.h"
 #include "net/infer_server.h"
 #include "net/net_cmds.h"
+
+#ifndef MINIOS_BENCH_FAST_BOOT
+#define MINIOS_BENCH_FAST_BOOT 1
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  External symbols                                                   */
@@ -93,6 +100,21 @@ void HAL_Exception_Handler(uint64_t id, uint64_t esr,
     HAL_UART_PutString("  ESR_EL1 : "); HAL_UART_PutHex(esr); HAL_UART_PutString("\n");
     HAL_UART_PutString("  ELR_EL1 : "); HAL_UART_PutHex(elr); HAL_UART_PutString("\n");
     HAL_UART_PutString("  FAR_EL1 : "); HAL_UART_PutHex(far); HAL_UART_PutString("\n");
+
+    const ONNX_Node* node = ONNX_Runtime_GetCurrentNode();
+    if (node) {
+        HAL_UART_PutString("  ONNX node: '");
+        HAL_UART_PutString(node->name);
+        HAL_UART_PutString("' (");
+        HAL_UART_PutString(ONNX_GetOperatorName(node->op_type));
+        HAL_UART_PutString(")\n");
+        HAL_UART_PutString("  inputs   : ");
+        HAL_UART_PutDec(node->num_inputs);
+        HAL_UART_PutString("  outputs: ");
+        HAL_UART_PutDec(node->num_outputs);
+        HAL_UART_PutString("\n");
+    }
+
     HAL_UART_PutString("  System halted.\n");
     while (1) { __asm__ volatile("wfe"); }
 }
@@ -141,9 +163,10 @@ void HAL_IRQ_Handler(void)
 
         /* Update scheduler: wake sleeping threads */
         SCHED_TimerTick();
-        
+#if !MINIOS_BENCH_FAST_BOOT
         /* Process network retransmissions */
         SFU_Tick();
+#endif
     } else if (irq_id == VNIC_GetIRQ()) {
         /* VirtIO-Net interrupt: ACK and process TX/RX rings */
         VNIC_IRQHandler();
@@ -163,6 +186,7 @@ void HAL_IRQ_Handler(void)
 /* ------------------------------------------------------------------ */
 /*  Demo thread: simulated ML inference workload                      */
 /* ------------------------------------------------------------------ */
+#if !MINIOS_BENCH_FAST_BOOT
 static void inference_thread(void *arg)
 {
     (void)arg;
@@ -251,6 +275,7 @@ static void monitor_thread(void *arg)
 
     HAL_UART_PutString("[MON  ] Monitor exiting\n");
 }
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  Kernel entry point                                                */
@@ -321,6 +346,9 @@ void kernel_main(void)
      * VNIC_Init is now called inside ETH_Init so the NIC smoke-test
      * block from the previous revision is superseded.
      */
+#if MINIOS_BENCH_FAST_BOOT
+    HAL_UART_PutString("[BOOT] fast-boot: skipping network stack init\n");
+#else
     HAL_UART_PutString("[BOOT] Initializing network stack...\n");
     ETH_Init();
     ARP_Init();
@@ -333,10 +361,11 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT] Network stack ready\n");
 
     /* Wake up QEMU SLIRP by sending a dummy frame (triggers ARP request) */
-    uint8_t dummy[4] = "wake";
+    uint8_t dummy[5] = "wake";
     UDP_Send(0x0202000aUL, 9000u, 9000u, dummy, 4u);
     extern void VNIC_Poll(void);
     VNIC_Poll(); /* flush TX */
+#endif
 
     /* ---- Step 6: Initialize Timer ---- */
     HAL_UART_PutString("[BOOT] Initializing timer...\n");
@@ -357,6 +386,9 @@ void kernel_main(void)
 
     /* ---- Step 8: Create application threads ---- */
     HAL_UART_PutString("[BOOT] Creating threads...\n");
+#if MINIOS_BENCH_FAST_BOOT
+    HAL_UART_PutString("[BOOT]   fast-boot: skipping demo/test threads\n");
+#else
     thread_t *t_infer = NULL;
     thread_t *t_onnx  = NULL;
     thread_t *t_mon   = NULL;
@@ -372,6 +404,7 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT]   onnx     : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
+
     status = THREAD_Create(&t_mon, "monitor", monitor_thread,
                            NULL, THREAD_PRIORITY_LOW, 0);
     HAL_UART_PutString("[BOOT]   monitor  : ");
@@ -384,12 +417,23 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT]   test     : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
+#endif
 
     /* ---- Step 8b: Register background daemons ---- */
+#if MINIOS_BENCH_FAST_BOOT
+    HAL_UART_PutString("[BOOT] Daemons  : SKIPPED (fast-boot)\n");
+    CMD_RegisterBuiltins();
+    HAL_UART_PutString("[BOOT] Builtins : OK\n");
+    status = SHELL_RegisterDaemon();
+    HAL_UART_PutString("[BOOT] Shell    : ");
+    HAL_UART_PutString(STATUS_ToString(status));
+    HAL_UART_PutString("\n");
+#else
     status = DAEMON_RegisterAll();
     HAL_UART_PutString("[BOOT] Daemons  : ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
+#endif
 
     /* ---- Step 8c: Initialize ULFS file system ---- */
     HAL_UART_PutString("[BOOT] Initializing ULFS file system...\n");

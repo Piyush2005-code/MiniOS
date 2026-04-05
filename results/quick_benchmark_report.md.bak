@@ -1,0 +1,442 @@
+# MiniOS vs Ubuntu — Quick ONNX Inference Benchmark (Small Models)
+
+## What This Benchmark Measures
+MiniOS is a custom bare-metal OS with zero Linux overhead — no kernel scheduler, no libc, no virtual memory manager. This quick benchmark uses the 3 smallest available models (mnist, squeezenet, shufflenet) with 50 runs each to get fast directional results before running the full exhaustive benchmark (squeezenet, mobilenetv2, resnet50, 200 runs).
+
+## Environment
+| Parameter          | Value                                        |
+|--------------------|----------------------------------------------|
+| QEMU CPU           | cortex-a57                                   |
+| vCPUs              | 1 (-smp 1)                                   |
+| RAM                | 2048 MB                                      |
+| MiniOS threading   | Single-threaded (bare-metal, by design)      |
+| Ubuntu threading   | OMP_NUM_THREADS=1 (artificially constrained) |
+| Runs per model     | 50 (5 warmup discarded)                      |
+| Models tested      | mnist, squeezenet, shufflenet                |
+| ONNX Runtime       | MiniOS custom build / Ubuntu pip version     |
+| Date               | 2026-04-04                                   |
+
+## Latency Results (ms)
+| Model      | OS      | Mean | p50  | p95  | Min  | Max  |
+|------------|---------|------|------|------|------|------|
+| mnist      | MiniOS  | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| mnist      | Ubuntu  | 8.55 | 8.50 | 9.08 | 8.13 | 9.46 |
+| squeezenet | MiniOS  | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| squeezenet | Ubuntu  | 2992.99 | 2991.77 | 3090.25 | 2904.56 | 3133.30 |
+| shufflenet | MiniOS  | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| shufflenet | Ubuntu  | 1386.98 | 1373.10 | 1473.69 | 1339.66 | 1516.64 |
+
+## Memory & Load Time
+| Model      | MiniOS RSS(kb) | Ubuntu RSS(kb) | ΔRSS | MiniOS Load(ms) | Ubuntu Load(ms) | ΔLoad |
+|------------|----------------|----------------|------|-----------------|-----------------|-------|
+| mnist      | 0              | 46824          | 46824 | 0.00            | 485.65          | 485.65 |
+| squeezenet | 0              | 57892          | 57892 | 0.00            | 488.87          | 488.87 |
+| shufflenet | 0              | 66908          | 66908 | 0.00            | 1023.53         | 1023.53 |
+
+## Delta Summary (negative = MiniOS wins)
+| Model      | ΔLatency(ms) | ΔLatency(%) | ΔMemory(kb) | ΔLoad(ms) |
+|------------|--------------|-------------|-------------|-----------|
+| mnist      | 8.55         | 100.00      | 46824       | 485.65    |
+| squeezenet | 2992.99      | 100.00      | 57892       | 488.87    |
+| shufflenet | 1386.98      | 100.00      | 66908       | 1023.53   |
+
+## Observations
+- Latency: The MiniOS custom runtime currently crashes with SHAPE_MISMATCH on all MatMul nodes for these models. `squeezenet` is executing slowly and timing out after 10+ minutes.
+- Jitter: We expect MiniOS to have zero jitter compared to Ubuntu, but it requires a working runtime to prove.
+- Memory: MiniOS is currently recording 0 RSS because it crashed, but even if it worked, its memory footprint will be drastically lower due to no OS abstractions.
+
+## Verdict
+mnist      → MiniOS 0 ms faster (0%) / tied / Ubuntu faster (due to MiniOS crash)
+squeezenet → MiniOS timed out (>10 minutes for 1 inference or many slow inferences)
+shufflenet → MiniOS 0 ms faster (0%) / tied / Ubuntu faster (due to MiniOS crash)
+
+## Next Step Recommendation
+- Is the pipeline working correctly end-to-end? The automation and Ubuntu runner are working flawlessly. The MiniOS runner automation is also working (the `expect` script functions perfectly).
+- Does the full run (Prompt 2: mobilenetv2, resnet50, 200 runs) make sense? **No.** Not until the ONNX runtime shape mismatch bug is fixed in MiniOS.
+- Any issues to fix before running the full benchmark? **Yes.** The MiniOS ONNX runtime throws `Node execution failed: SHAPE_MISMATCH` during the `MatMul` operations. This must be debugged and fixed first.
+
+## Raw Data
+
+### mnist_minios.json
+```json
+{
+  "model": "mnist",
+  "os": "minios",
+  "runs": 50,
+  "warmup": 5,
+  "latencies_ms": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "peak_rss_kb": 0,
+  "model_load_ms": 0.0
+}
+```
+
+### mnist_ubuntu.json
+```json
+{
+  "model": "mnist",
+  "os": "ubuntu",
+  "runs": 50,
+  "warmup": 5,
+  "latencies_ms": [
+    8.496665000052417,
+    8.624524999959249,
+    8.584295999980895,
+    8.378010000001268,
+    8.454130000018267,
+    8.903442000018913,
+    8.378505999985464,
+    8.822470999916732,
+    8.545491000063521,
+    8.279573999971035,
+    8.512049999922056,
+    8.361825000065437,
+    8.626253999977962,
+    8.383821000052194,
+    8.388287999991917,
+    8.210480999991887,
+    8.17918399991413,
+    8.146206000105849,
+    8.273794999922757,
+    8.316713999988679,
+    8.328559000005953,
+    8.226841999999124,
+    8.40447200005201,
+    8.256233999986762,
+    8.524216000068918,
+    8.201580999980251,
+    8.2884109999668,
+    8.132359000001088,
+    8.215940000013688,
+    8.598511999934999,
+    9.000485999990815,
+    9.46202699992682,
+    8.997716000067157,
+    8.664914999940265,
+    8.802667999930236,
+    8.752304999916305,
+    8.714556999962042,
+    8.413596999957917,
+    9.293088999925203,
+    8.587960999989264,
+    8.401798000022609,
+    8.49442399999134,
+    8.480048000023999,
+    8.25016599992523,
+    8.806205999917438,
+    8.93747500003883,
+    9.144721999973626,
+    8.815491000063957,
+    8.535661999985678,
+    8.657471000105943
+  ],
+  "peak_rss_kb": 46824,
+  "model_load_ms": 485.6542340000942
+}
+```
+
+### squeezenet_minios.json
+```json
+{
+  "model": "squeezenet",
+  "os": "minios",
+  "runs": 50,
+  "warmup": 5,
+  "latencies_ms": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "peak_rss_kb": 0,
+  "model_load_ms": 0.0
+}
+```
+
+### squeezenet_ubuntu.json
+```json
+{
+  "model": "squeezenet",
+  "os": "ubuntu",
+  "runs": 50,
+  "warmup": 5,
+  "latencies_ms": [
+    2989.517054999965,
+    3001.237866999986,
+    3054.5382740000377,
+    2998.2625320000125,
+    3111.706570000024,
+    3049.1681839999956,
+    2957.6359259999663,
+    2934.139383999991,
+    3018.0325219999986,
+    2992.5206909999815,
+    3093.4570469999016,
+    3080.9755430000223,
+    2994.3338920000997,
+    3010.6697760001,
+    3133.301829000061,
+    2959.057193000035,
+    3002.422700000011,
+    3024.106065999945,
+    2998.613774999967,
+    3086.3333710000234,
+    3042.409058999965,
+    2991.0110030000396,
+    2998.200648999955,
+    2980.300457999988,
+    3010.5476229999795,
+    3002.4817879999546,
+    2975.1943620000247,
+    3079.556661999959,
+    2999.8622660000365,
+    3072.9075030000104,
+    2984.227240999985,
+    2904.5595170000524,
+    2917.920067999944,
+    2945.332148000034,
+    2988.1194509999887,
+    2937.4085270000023,
+    3028.1177719999732,
+    2920.0259550000283,
+    2935.8913739999934,
+    2930.740023999988,
+    2987.4829120000186,
+    2930.201468000064,
+    2960.861641000065,
+    2954.4545340000923,
+    2993.76493200009,
+    2957.435650999969,
+    2979.9616489999607,
+    2907.191832999956,
+    2918.9301530000193,
+    2924.61278899998
+  ],
+  "peak_rss_kb": 57892,
+  "model_load_ms": 488.87322299992775
+}
+```
+
+### shufflenet_minios.json
+```json
+{
+  "model": "shufflenet",
+  "os": "minios",
+  "runs": 50,
+  "warmup": 5,
+  "latencies_ms": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "peak_rss_kb": 0,
+  "model_load_ms": 0.0
+}
+```
+
+### shufflenet_ubuntu.json
+```json
+{
+  "model": "shufflenet",
+  "os": "ubuntu",
+  "runs": 50,
+  "warmup": 5,
+  "latencies_ms": [
+    1400.5011610000793,
+    1368.2292859999734,
+    1369.1686270000218,
+    1371.166895999977,
+    1389.6176629999673,
+    1351.0006340000018,
+    1345.4794020000236,
+    1359.455926999999,
+    1339.655113000049,
+    1370.6595319999906,
+    1383.1239529999948,
+    1392.9278739999518,
+    1418.9808220000941,
+    1350.2415909999854,
+    1366.6284599999017,
+    1400.1645419999704,
+    1363.433420999968,
+    1380.9896300000446,
+    1386.3428170000134,
+    1483.9971659999946,
+    1423.739415,
+    1358.9425960000199,
+    1399.3126029999985,
+    1383.1710770000427,
+    1407.461006999938,
+    1370.5515419999301,
+    1431.0286119999773,
+    1363.4157260000848,
+    1344.47198700002,
+    1404.3984070000306,
+    1373.0144950000067,
+    1373.1877339999983,
+    1373.5413979999294,
+    1372.6996269999745,
+    1343.3395539999538,
+    1397.7251699999442,
+    1358.604315999969,
+    1381.4929819999406,
+    1436.7891189999682,
+    1408.101835000025,
+    1372.6837269999805,
+    1369.0866370000094,
+    1489.293760999999,
+    1516.6422629999943,
+    1461.0905170000024,
+    1394.4258800000853,
+    1354.2984219999425,
+    1357.7344049999738,
+    1368.8815890000114,
+    1367.889468000044
+  ],
+  "peak_rss_kb": 66908,
+  "model_load_ms": 1023.531303000027
+}
+```

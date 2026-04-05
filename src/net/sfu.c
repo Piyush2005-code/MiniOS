@@ -76,6 +76,7 @@ static sfu_inflight_t sfu_inflight[SFU_MAX_INFLIGHT];
 static void (*sfu_timeout_cb)(uint32_t req_id) = (void(*)(uint32_t))0;
 static sfu_infer_handler_t sfu_infer_handler = (sfu_infer_handler_t)0;
 static sfu_cmd_handler_t   sfu_cmd_handler   = (sfu_cmd_handler_t)0;
+static volatile bool sfu_tick_enabled = true;
 
 /* Runtime statistics */
 static sfu_stats_t sfu_stats;
@@ -530,8 +531,22 @@ void SFU_OnNack(uint32_t req_id, uint32_t dst_ip, uint16_t dst_port)
     }
 }
 
+void SFU_SetTickEnabled(bool enable)
+{
+    sfu_tick_enabled = enable;
+}
+
+bool SFU_GetTickEnabled(void)
+{
+    return sfu_tick_enabled;
+}
+
 void SFU_Tick(void)
 {
+    if (!sfu_tick_enabled) {
+        return;
+    }
+
     /* Periodically poll VirtIO-Net in case interrupts are missing */
     extern void VNIC_Poll(void);
     VNIC_Poll();

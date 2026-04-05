@@ -47,8 +47,19 @@ static thread_t *current_thread = NULL;
 static thread_t *ready_head[THREAD_PRIORITY_COUNT];
 static thread_t *ready_tail[THREAD_PRIORITY_COUNT];
 
+/** Bitmap of non-empty ready queues (bit p set => priority p has runnable threads) */
+static uint8_t ready_bitmap = 0;
+
+/** Ordered singly-linked list of sleeping threads (earliest wake first) */
+static thread_t *sleep_head = NULL;
+
+/** Number of threads currently sleeping */
+static uint32_t sleeping_threads = 0;
+
 /** Scheduler active flag */
 static bool sched_running = false;
+/** FELIX scheduler mode flag */
+static volatile bool g_sched_felix_mode = false;
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                  */
@@ -72,6 +83,10 @@ static void copy_name(char *dst, const char *src, size_t max)
 static void enqueue_ready(thread_t *t)
 {
     uint8_t p = t->priority;
+    if (p >= THREAD_PRIORITY_COUNT) {
+        p = THREAD_PRIORITY_NORMAL;
+        t->priority = p;
+    }
     t->next = NULL;
 
     if (ready_tail[p] != NULL) {
@@ -80,6 +95,7 @@ static void enqueue_ready(thread_t *t)
         ready_head[p] = t;
     }
     ready_tail[p] = t;
+    ready_bitmap |= (uint8_t)(1U << p);
 }
 
 /**
@@ -88,18 +104,66 @@ static void enqueue_ready(thread_t *t)
  */
 static thread_t *dequeue_ready(void)
 {
-    for (int p = 0; p < THREAD_PRIORITY_COUNT; p++) {
-        if (ready_head[p] != NULL) {
-            thread_t *t = ready_head[p];
-            ready_head[p] = t->next;
-            if (ready_head[p] == NULL) {
-                ready_tail[p] = NULL;
-            }
-            t->next = NULL;
-            return t;
+    uint8_t mask = ready_bitmap;
+    if (mask == 0) {
+        return NULL;
+    }
+
+    uint8_t p;
+    if (mask & (1U << THREAD_PRIORITY_HIGH)) {
+        p = THREAD_PRIORITY_HIGH;
+    } else if (mask & (1U << THREAD_PRIORITY_NORMAL)) {
+        p = THREAD_PRIORITY_NORMAL;
+    } else if (mask & (1U << THREAD_PRIORITY_LOW)) {
+        p = THREAD_PRIORITY_LOW;
+    } else {
+        p = THREAD_PRIORITY_IDLE;
+    }
+
+    thread_t *t = ready_head[p];
+    ready_head[p] = t->next;
+    if (ready_head[p] == NULL) {
+        ready_tail[p] = NULL;
+        ready_bitmap &= (uint8_t)~(1U << p);
+    }
+    t->next = NULL;
+    return t;
+}
+
+/**
+ * @brief Insert sleeping thread into wake-ordered sleep queue
+ */
+static void sleep_insert_ordered(thread_t *t)
+{
+    thread_t **cursor = &sleep_head;
+    while (*cursor != NULL && (*cursor)->wake_tick <= t->wake_tick) {
+        cursor = &(*cursor)->next;
+    }
+
+    t->next = *cursor;
+    *cursor = t;
+    sleeping_threads++;
+}
+
+/**
+ * @brief Move all expired sleeping threads into READY queues
+ */
+static void sleep_wake_expired(uint64_t now)
+{
+    while (sleep_head != NULL && sleep_head->wake_tick <= now) {
+        thread_t *t = sleep_head;
+        sleep_head = t->next;
+        t->next = NULL;
+
+        if (sleeping_threads > 0) {
+            sleeping_threads--;
+        }
+
+        if (t->state == THREAD_STATE_SLEEPING) {
+            t->state = THREAD_STATE_READY;
+            enqueue_ready(t);
         }
     }
-    return NULL;
 }
 
 /**
@@ -243,6 +307,15 @@ void THREAD_Yield(void)
 
     thread_t *old = current_thread;
 
+    if (g_sched_felix_mode && old->state == THREAD_STATE_RUNNING) {
+        uint8_t priority_mask =
+            (uint8_t)((1U << ((uint32_t)old->priority + 1U)) - 1U);
+        if ((ready_bitmap & priority_mask) == 0) {
+            arch_irq_restore(flags);
+            return;
+        }
+    }
+
     /* Only re-enqueue if still running (not sleeping/blocked/terminated) */
     if (old->state == THREAD_STATE_RUNNING) {
         old->state = THREAD_STATE_READY;
@@ -292,6 +365,7 @@ void THREAD_Sleep(uint64_t ms)
     uint64_t ticks = (ms + tick_ms - 1) / tick_ms; /* Round up */
     current_thread->wake_tick = HAL_Timer_GetSystemTicks() + ticks;
     current_thread->state = THREAD_STATE_SLEEPING;
+    sleep_insert_ordered(current_thread);
 
     /* Don't enqueue — sleeping threads are tracked by timer tick */
     schedule();
@@ -321,6 +395,9 @@ Status SCHED_Init(void)
         ready_head[p] = NULL;
         ready_tail[p] = NULL;
     }
+    ready_bitmap = 0;
+    sleep_head = NULL;
+    sleeping_threads = 0;
 
     /*
      * Create idle thread (ID 0) from current boot context.
@@ -376,16 +453,11 @@ void SCHED_TimerTick(void)
      * This does NOT perform context switches — the woken thread
      * will be scheduled on the next voluntary yield.
      */
-    uint64_t now = HAL_Timer_GetSystemTicks();
-
-    for (uint32_t i = 0; i < thread_count; i++) {
-        if (threads[i].state == THREAD_STATE_SLEEPING) {
-            if (now >= threads[i].wake_tick) {
-                threads[i].state = THREAD_STATE_READY;
-                enqueue_ready(&threads[i]);
-            }
-        }
+    if (sleeping_threads == 0) {
+        return;
     }
+
+    sleep_wake_expired(HAL_Timer_GetSystemTicks());
 }
 
 uint32_t SCHED_GetThreadCount(void)
@@ -396,4 +468,14 @@ uint32_t SCHED_GetThreadCount(void)
 uint64_t SCHED_GetUptime(void)
 {
     return HAL_Timer_GetSystemTicks() * HAL_Timer_GetTickPeriodMs();
+}
+
+void SCHED_SetFelixMode(bool enable)
+{
+    g_sched_felix_mode = enable;
+}
+
+bool SCHED_GetFelixMode(void)
+{
+    return g_sched_felix_mode;
 }

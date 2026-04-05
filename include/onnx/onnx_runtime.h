@@ -37,6 +37,67 @@ Status ONNX_Runtime_Init(ONNX_InferenceContext* ctx,
 void ONNX_Runtime_Cleanup(ONNX_InferenceContext* ctx);
 
 /* ------------------------------------------------------------------ */
+/*  Runtime Execution Controls                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Enable/disable verbose runtime logging during inference.
+ *
+ * When disabled, per-inference and per-node UART logs are suppressed.
+ */
+void ONNX_Runtime_SetVerbose(bool enable);
+
+/**
+ * @brief Query current runtime verbosity flag.
+ */
+bool ONNX_Runtime_GetVerbose(void);
+
+/**
+ * @brief Enable/disable per-node cooperative yield during inference.
+ *
+ * Turning this off can reduce scheduler overhead for benchmark runs.
+ */
+void ONNX_Runtime_SetYieldBetweenNodes(bool enable);
+
+/**
+ * @brief Query current yield-between-nodes setting.
+ */
+bool ONNX_Runtime_GetYieldBetweenNodes(void);
+
+/**
+ * @brief Enable/disable per-node profiling counters.
+ *
+ * When disabled, ONNX_Runtime_ExecuteNode skips per-node timer reads and
+ * exec_count/exec_time accumulation to reduce hot-path overhead.
+ */
+void ONNX_Runtime_SetNodeProfiling(bool enable);
+
+/**
+ * @brief Query current per-node profiling setting.
+ */
+bool ONNX_Runtime_GetNodeProfiling(void);
+
+/**
+ * @brief Enable/disable per-node output preparation in inference loop.
+ *
+ * When disabled, ONNX_Runtime_Inference skips output-shape/allocate checks,
+ * assuming outputs were already prepared during warmup.
+ */
+void ONNX_Runtime_SetPrepareNodeOutputs(bool enable);
+
+/**
+ * @brief Query current output-preparation setting.
+ */
+bool ONNX_Runtime_GetPrepareNodeOutputs(void);
+
+/**
+ * @brief Get currently executing node (or NULL if idle).
+ *
+ * Useful for exception diagnostics when inference crashes in low-level code.
+ */
+const ONNX_Node* ONNX_Runtime_GetCurrentNode(void);
+
+/* ------------------------------------------------------------------ */
 /*  Inference Execution                                               */
 /* ------------------------------------------------------------------ */
 

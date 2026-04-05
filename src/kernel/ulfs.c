@@ -550,7 +550,7 @@ static void path_split(char *path, char **parts, uint32_t max_parts,
  * @complexity O(depth × entries_per_dir)
  */
 static Status path_resolve(const char *path, uint32_t *out_ino,
-                            uint32_t *out_parent_ino, const char **out_name)
+                            uint32_t *out_parent_ino, char *out_name)
 {
     if (!path || path[0] == '\0') return STATUS_ERROR_INVALID_ARGUMENT;
 
@@ -595,7 +595,7 @@ static Status path_resolve(const char *path, uint32_t *out_ino,
     if (n_parts == 0) {
         *out_ino = cur_ino;
         if (out_parent_ino) *out_parent_ino = cur_ino;
-        if (out_name)       *out_name = "/";
+        if (out_name)       ulfs_strncpy(out_name, "/", ULFS_NAME_MAX);
         return STATUS_OK;
     }
 
@@ -616,14 +616,14 @@ static Status path_resolve(const char *path, uint32_t *out_ino,
                 if (i == n_parts - 1) {
                     *out_ino = 0xFFFFFFFFU;
                     if (out_parent_ino) *out_parent_ino = cur_ino;
-                    if (out_name)       *out_name = parts[i];
+                    if (out_name)       ulfs_strncpy(out_name, parts[i], ULFS_NAME_MAX);
                     return STATUS_ERROR_INVALID_ARGUMENT;
                 }
                 return STATUS_ERROR_INVALID_ARGUMENT;
             }
             cur_ino = child_ino;
         }
-        if (out_name) *out_name = parts[i];
+        if (out_name) ulfs_strncpy(out_name, parts[i], ULFS_NAME_MAX);
     }
 
     *out_ino = cur_ino;
@@ -803,8 +803,8 @@ Status ULFS_Create(const char *path)
 
     /* Resolve path to find parent directory */
     uint32_t existing_ino, parent_ino;
-    const char *basename;
-    Status s = path_resolve(path, &existing_ino, &parent_ino, &basename);
+    char basename[ULFS_NAME_MAX];
+    Status s = path_resolve(path, &existing_ino, &parent_ino, basename);
 
     if (s == STATUS_OK && existing_ino != 0xFFFFFFFFU) {
         /* Already exists */
@@ -843,9 +843,8 @@ Status ULFS_Open(const char *path, uint8_t flags, int *fd_out)
     if (!path || !fd_out) return STATUS_ERROR_INVALID_ARGUMENT;
 
     /* Handle O_CREAT: create if not exists */
-    uint32_t ino, parent_ino;
-    const char *basename;
-    Status s = path_resolve(path, &ino, &parent_ino, &basename);
+    uint32_t ino;
+    Status s = path_resolve(path, &ino, NULL, NULL);
 
     if (s != STATUS_OK || ino == 0xFFFFFFFFU) {
         /* Not found */
@@ -1003,8 +1002,8 @@ Status ULFS_Mkdir(const char *path)
     if (!path)          return STATUS_ERROR_INVALID_ARGUMENT;
 
     uint32_t existing_ino, parent_ino;
-    const char *basename;
-    Status s = path_resolve(path, &existing_ino, &parent_ino, &basename);
+    char basename[ULFS_NAME_MAX];
+    Status s = path_resolve(path, &existing_ino, &parent_ino, basename);
 
     if (s == STATUS_OK && existing_ino != 0xFFFFFFFFU) {
         return STATUS_ERROR_INVALID_ARGUMENT; /* Already exists */
@@ -1114,8 +1113,8 @@ Status ULFS_Unlink(const char *path)
     if (!path)          return STATUS_ERROR_INVALID_ARGUMENT;
 
     uint32_t ino, parent_ino;
-    const char *basename;
-    Status s = path_resolve(path, &ino, &parent_ino, &basename);
+    char basename[ULFS_NAME_MAX];
+    Status s = path_resolve(path, &ino, &parent_ino, basename);
     if (s != STATUS_OK || ino == 0xFFFFFFFFU) return STATUS_ERROR_INVALID_ARGUMENT;
 
     ulfs_inode_t *inode;

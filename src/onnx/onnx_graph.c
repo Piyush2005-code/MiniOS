@@ -299,59 +299,80 @@ Status ONNX_Graph_GenerateSchedule(ONNX_Graph* graph)
         return status;
     }
     
-    /* Simple topological sort using Kahn's algorithm */
-    bool visited[ONNX_MAX_NODES];
-    uint32_t in_degree[ONNX_MAX_NODES];
-    
-    /* Initialize arrays manually to avoid memset */
-    for (uint32_t i = 0; i < ONNX_MAX_NODES; i++) {
-        visited[i] = false;
-        in_degree[i] = 0;
-    }
-    
-    /* Calculate in-degrees */
-    for (uint32_t i = 0; i < graph->num_nodes; i++) {
+    /* Queue-based Kahn topological sort: O(nodes + edges). */
+    enum { ONNX_MAX_EDGES = ONNX_MAX_NODES * ONNX_MAX_INPUTS };
+    static uint32_t in_degree[ONNX_MAX_NODES];
+    static uint32_t queue[ONNX_MAX_NODES];
+    static uint32_t head_edge[ONNX_MAX_NODES];
+    static uint32_t edge_to[ONNX_MAX_EDGES];
+    static uint32_t edge_next[ONNX_MAX_EDGES];
+
+    const uint32_t n = graph->num_nodes;
+    uint32_t edge_count = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
         in_degree[i] = graph->nodes[i].num_dependencies;
+        head_edge[i] = 0xFFFFFFFFu;
+        graph->nodes[i].is_scheduled = false;
     }
-    
-    graph->schedule_length = 0;
-    
-    /* Repeatedly find nodes with no dependencies */
-    for (uint32_t iter = 0; iter < graph->num_nodes; iter++) {
-        /* Find a node with in-degree 0 */
-        uint32_t node_idx = ONNX_MAX_NODES;
-        for (uint32_t i = 0; i < graph->num_nodes; i++) {
-            if (!visited[i] && in_degree[i] == 0) {
-                node_idx = i;
-                break;
+
+    /* Build adjacency list: dependency -> dependent. */
+    for (uint32_t i = 0; i < n; i++) {
+        ONNX_Node* node = &graph->nodes[i];
+        for (uint32_t j = 0; j < node->num_dependencies; j++) {
+            ONNX_Node* dep = node->dependencies[j];
+            if (!dep) {
+                continue;
             }
+
+            uint64_t dep_idx64 = (uint64_t)(dep - graph->nodes);
+            if (dep_idx64 >= n || edge_count >= ONNX_MAX_EDGES) {
+                return STATUS_ERROR_INVALID_GRAPH;
+            }
+
+            uint32_t dep_idx = (uint32_t)dep_idx64;
+            edge_to[edge_count] = i;
+            edge_next[edge_count] = head_edge[dep_idx];
+            head_edge[dep_idx] = edge_count;
+            edge_count++;
         }
-        
-        if (node_idx == ONNX_MAX_NODES) {
-            /* No node found - might be a cycle */
-            HAL_UART_PutString("[ONNX] Error: Could not generate schedule (cycle detected?)\n");
-            return STATUS_ERROR_INVALID_GRAPH;
+    }
+
+    /* Initialize queue with indegree-0 nodes. */
+    uint32_t q_head = 0;
+    uint32_t q_tail = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if (in_degree[i] == 0) {
+            queue[q_tail++] = i;
         }
-        
-        /* Add to schedule */
-        graph->exec_schedule[graph->schedule_length] = &graph->nodes[node_idx];
-        graph->nodes[node_idx].exec_order = graph->schedule_length;
+    }
+
+    graph->schedule_length = 0;
+    while (q_head < q_tail) {
+        uint32_t node_idx = queue[q_head++];
+        ONNX_Node* node = &graph->nodes[node_idx];
+
+        graph->exec_schedule[graph->schedule_length] = node;
+        node->exec_order = graph->schedule_length;
+        node->is_scheduled = true;
         graph->schedule_length++;
-        visited[node_idx] = true;
-        
-        /* Reduce in-degree of dependent nodes */
-        for (uint32_t i = 0; i < graph->num_nodes; i++) {
-            if (visited[i]) continue;
-            
-            ONNX_Node* node = &graph->nodes[i];
-            for (uint32_t j = 0; j < node->num_dependencies; j++) {
-                if (node->dependencies[j] == &graph->nodes[node_idx]) {
-                    in_degree[i]--;
+
+        for (uint32_t e = head_edge[node_idx]; e != 0xFFFFFFFFu; e = edge_next[e]) {
+            uint32_t dep_idx = edge_to[e];
+            if (in_degree[dep_idx] > 0) {
+                in_degree[dep_idx]--;
+                if (in_degree[dep_idx] == 0) {
+                    queue[q_tail++] = dep_idx;
                 }
             }
         }
     }
-    
+
+    if (graph->schedule_length != n) {
+        HAL_UART_PutString("[ONNX] Error: Could not generate schedule (cycle detected?)\n");
+        return STATUS_ERROR_INVALID_GRAPH;
+    }
+
     return STATUS_OK;
 }
 
@@ -491,9 +512,20 @@ void ONNX_Graph_PrintStats(const ONNX_Graph* graph)
     
     for (uint32_t i = 0; i < graph->num_nodes; i++) {
         const ONNX_Node* node = &graph->nodes[i];
-        
-        HAL_UART_PutString(node->name);
-        HAL_UART_PutString(": ");
+
+        HAL_UART_PutString("[");
+        HAL_UART_PutDec(i);
+        HAL_UART_PutString("] ");
+
+        if (node->name[0] != '\0') {
+            HAL_UART_PutString(node->name);
+        } else {
+            HAL_UART_PutString("<unnamed>");
+        }
+
+        HAL_UART_PutString(" (");
+        HAL_UART_PutString(ONNX_GetOperatorName(node->op_type));
+        HAL_UART_PutString("): ");
         
         if (node->exec_count > 0) {
             uint64_t avg_us = node->exec_time_us / node->exec_count;

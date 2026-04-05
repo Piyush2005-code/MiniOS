@@ -29,14 +29,14 @@
 /** Maximum number of simultaneously registered commands */
 #define CMD_MAX_COMMANDS    32
 
-/** Maximum characters in a single input line (including null) */
-#define CMD_LINE_MAX        80
+/** Maximum characters in a command line (including null) */
+#define CMD_LINE_MAX        256
 
-/** Maximum number of whitespace-separated tokens on one line */
-#define CMD_MAX_ARGS        8
+/** Maximum number of arguments a command can have */
+#define CMD_MAX_ARGS        12
 
 /** Maximum characters in a command name (including null) */
-#define CMD_NAME_MAX        16
+#define CMD_NAME_MAX        32
 
 /** Maximum characters in a command help string (including null) */
 #define CMD_HELP_MAX        72

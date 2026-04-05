@@ -31,8 +31,8 @@ static void ensure_parent_dirs(const char *rel_path)
     char full[128];
     uint32_t fi = 0;  /* index into full */
 
-    /* Start with /storage/ prefix */
-    const char *prefix = "/storage/";
+    /* Start with /storage/ or / */
+    const char *prefix = (rel_path[0]=='b'&&rel_path[1]=='e'&&rel_path[2]=='n'&&rel_path[3]=='c'&&rel_path[4]=='h'&&rel_path[5]=='/') ? "/" : "/storage/";
     while (*prefix) {
         full[fi++] = *prefix++;
     }
@@ -77,15 +77,24 @@ Status INITFS_Populate(void)
     uint32_t written = 0;
     uint32_t skipped = 0;
 
+    ulfs_stat_t st_bench;
+    if (ULFS_Stat("/bench", &st_bench) != STATUS_OK) ULFS_Mkdir("/bench");
+    if (ULFS_Stat("/bench/results", &st_bench) != STATUS_OK) ULFS_Mkdir("/bench/results");
+
     for (uint32_t i = 0; i < INITFS_NUM_ENTRIES; i++) {
         const initfs_entry_t *e = &initfs_entries[i];
+        
+        if (e->path[0]=='b' && e->path[1]=='e' && e->path[2]=='n' && e->path[3]=='c') {
+            skipped++;
+            continue;
+        }
 
         /* Build full path: "/storage/<rel_path>" */
         char path[128];
+        const char *rp = e->path;
         const char *pfx = "/storage/";
         uint32_t pi = 0;
         while (*pfx) path[pi++] = *pfx++;
-        const char *rp = e->path;
         while (*rp && pi < sizeof(path) - 1) path[pi++] = *rp++;
         path[pi] = '\0';
 

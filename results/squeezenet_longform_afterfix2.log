@@ -1,0 +1,809 @@
+spawn qemu-system-aarch64 -machine virt -cpu cortex-a57 -m 2048M -smp 1 -nographic -kernel /home/vashu/workspace/college/prml/MiniOS/build/kernel.elf -drive if=pflash,file=/home/vashu/workspace/college/prml/MiniOS/flash.img,format=raw,index=1 -netdev user,id=net0,hostfwd=udp::9000-:9000 -device virtio-net-device,netdev=net0
+
+Hello, Piyush!!======================================
+  MiniOS v0.2 - ARM64 Unikernel
+  ML Inference with Multithreading
+======================================
+
+[BOOT] UART initialized: OK
+[BOOT] Running at EL1
+[BOOT] Installing exception vectors...
+[BOOT] Exception vectors installed
+[BOOT] Initializing MMU...
+[MMU ] Building page tables...
+[MMU ] Page table at: 0x480BA000
+[MMU ] MMU and caches enabled
+[BOOT] MMU status: OK
+[BOOT] Initializing memory manager...
+[KMEM] Heap initialized: 0x502A7000 - 0x5FFB0000 (259108 KB)
+[BOOT] KMEM status: OK
+[BOOT] Heap free: 259108 KB
+[BOOT] Initializing GIC...
+[GIC ] Initializing GICv2...
+[GIC ] Max IRQs: 288
+[GIC ] GICv2 initialized
+[BOOT] GIC status: OK
+[BOOT] Initializing network stack...
+[VNIC] Initializing VirtIO-Net driver...
+[VNIC] Scanning MMIO window for virtio-net...
+[VNIC] Found virtio-net at 0x0a003e00, slot 31 version 1, IRQ 79
+[VNIC] Feature negotiation OK (dev_features=0x39bf8064 drv_features=0x00000020)
+[VNIC]   Queue 0: desc=0x502a7000 avail=0x502a7100 used=0x502a8000
+[VNIC]   Queue 1: desc=0x502a9000 avail=0x502a9100 used=0x502aa000
+[VNIC] Device status set to DRIVER_OK
+[VNIC] MAC: 52:54:00:12:34:56
+[VNIC] IRQ 79 enabled
+[VNIC] VirtIO-Net initialized successfully
+[ETH ] init ok, MAC 52:54:00:12:34:56
+[IPV4] init ok
+[UDP ] init ok
+[UDP ] bound port 9000
+[SFU ] init ok, listening on port 9000
+[SFU ] running self-test...
+[SFU ] checksum mismatch: got 0x89c3 expected 0xc260
+[SFU ] selftest PASSED
+[INFER] ERROR: cannot open /storage/tiny_mlp.onnx
+[INFER] no default model; using stub (input*2)
+[INFER] server ready
+[BOOT] Network stack ready
+[BOOT] Initializing timer...
+[TMR ] Timer initialized: freq=62 MHz, tick=10 ms
+[BOOT] Timer status: OK  (10ms tick)
+[BOOT] Initializing scheduler...
+[SCHED] Scheduler initialized
+[BOOT] Scheduler status: OK
+[BOOT] Creating threads...
+[THRD] Created 'inference' (id=1, prio=1, stack=8192)
+[BOOT]   inference: OK
+[THRD] Created 'onnx' (id=2, prio=1, stack=8192)
+[BOOT]   onnx     : OK
+[THRD] Created 'monitor' (id=3, prio=2, stack=8192)
+[BOOT]   monitor  : OK
+[THRD] Created 'test' (id=4, prio=1, stack=8192)
+[BOOT]   test     : OK
+[DAEM ] Registering background daemons...
+[THRD] Created 'clock' (id=5, prio=2, stack=8192)
+[THRD] Created 'memwatch' (id=6, prio=2, stack=8192)
+[THRD] Created 'rtmon' (id=7, prio=2, stack=8192)
+[DAEM ] All daemons registered (clock, memwatch, rtmon)
+[DAEM ] Built-in commands registered
+[THRD] Created 'shell' (id=8, prio=2, stack=8192)
+[SHELL] Shell daemon registered
+[DAEM ] All subsystems ready
+[BOOT] Daemons  : OK
+[BOOT] Initializing ULFS file system...
+[ULFS] NVRAM Store Recovered!
+[ULFS] Initialized Dual-Store FS
+[BOOT] ULFS status: OK
+[BOOT] FS cmds  : OK
+[BOOT] ONNX cmds: OK
+[BOOT] Initializing NVRAM storage...
+[STOR ] Checking NVRAM...
+[STOR ] NVRAM verified
+[BOOT] NVRAM status: OK
+[INITFS] Populating /storage (19 files)...
+[INITFS] Done: 0 written, 19 skipped
+[BOOT] InitFS  : OK
+[BOOT] Enabling interrupts...
+[ARP ] learned host MAC 52:55:0a:00:02:02
+[ARP ] received ARP request for our IP — replying
+[ARP ] reply sent
+[SFU ] RX: invalid packet (bad magic/version/type) — NACK
+[SFU ] NACK → req_id=0x00000000
+[SFU ] RX msg_type=0x0004 req_id=0x00000000 plen=0
+
+[BOOT] ==============================
+[BOOT]  Starting scheduler
+[BOOT]  Threads: 9
+[BOOT] ==============================
+
+[SCHED] Starting scheduler
+[INFER] Inference thread started
+[INFER] Iteration 1/5  (50 ms)
+[ONNX ] ONNX demo thread started
+
+========================================
+   ONNX Model Loader Demo
+========================================
+
+
+--- Running HandCraftedTest ---
+[KMEM] Arena created: 64 KB at 0x509D22C0
+[ONNX] Loading protobuf format...
+  Data size: 66 bytes
+  IR version: 7
+  Graph size: 62 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: B
+[PARSE] Found raw_data len: 0xC
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 66 / expected end: 66
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Graph validation: OK
+[ONNX] Starting inference...
+  Executing: add (Add)
+--- ONNX TEST SUITE ---
+[KMEM] Arena created: 8 KB at 0x509E3300
+[PASS] ut_add_001
+[KMEM] Arena created: 8 KB at 0x509E5340
+[PASS] ut_sub_001
+[KMEM] Arena created: 8 KB at 0x509E7380
+[PASS] ut_mul_001
+[KMEM] Arena created: 8 KB at 0x509E93C0
+[PASS] ut_div_001
+[KMEM] Arena created: 8 KB at 0x509EB400
+[PASS] ut_matmul_001
+[KMEM] Arena created: 8 KB at 0x509ED440
+[PASS] ut_relu_001
+[KMEM] Arena created: 8 KB at 0x509EF480
+[PASS] ut_sigmoid_001
+[KMEM] Arena created: 8 KB at 0x509F14C0
+[PASS] ut_tanh_001
+[KMEM] Arena created: 8 KB at 0x509F3500
+[PASS] ut_softmax_001
+[KMEM] Arena created: 8 KB at 0x509F5540
+[PASS] ut_leakyrelu_001
+[KMEM] Arena created: 8 KB at 0x509F7580
+[PASS] ut_abs_001
+[KMEM] Arena created: 8 KB at 0x509F95C0
+[PASS] ut_neg_001
+[KMEM] Arena created: 8 KB at 0x509FB600
+[PASS] ut_clip_001
+[KMEM] Arena created: 8 KB at 0x509FD640
+[PASS] ut_identity_001
+[KMEM] Arena created: 8 KB at 0x509FF680
+[PASS] ut_exp_001
+[KMEM] Arena created: 8 KB at 0x50A016C0
+[PASS] ut_log_001
+[KMEM] Arena created: 8 KB at 0x50A03700
+[PASS] ut_sqrt_001
+[KMEM] Arena created: 8 KB at 0x50A05740
+[PASS] ut_ceil_001
+[KMEM] Arena created: 8 KB at 0x50A07780
+[PASS] ut_floor_001
+[KMEM] Arena created: 8 KB at 0x50A097C0
+[PASS] ut_sin_001
+[KMEM] Arena created: 8 KB at 0x50A0B800
+[PASS] ut_cos_001
+[KMEM] Arena created: 8 KB at 0x50A0D840
+[PASS] ut_reshape_001
+[KMEM] Arena created: 8 KB at 0x50A0F880
+[PASS] ut_flatten_001
+[KMEM] Arena created: 8 KB at 0x50A118C0
+[ONNX Transpose] in_data=0x50A118C0 out_data=0x50A11900 in_shape=2,3, out_shape=3,2, perm=1,0,
+[PASS] ut_transpose_001
+[KMEM] Arena created: 8 KB at 0x50A13900
+[PASS] ut_batchnorm_001
+[KMEM] Arena created: 8 KB at 0x50A15940
+[PASS] ut_gemm_001
+[KMEM] Arena created: 8 KB at 0x50A17980
+[PASS] ut_concat_001
+[KMEM] Arena created: 8 KB at 0x50A199C0
+[PASS] ut_gavgpool_001
+[KMEM] Arena created: 8 KB at 0x50A1BA00
+[PASS] ut_squeeze_001
+[KMEM] Arena created: 8 KB at 0x50A1DA40
+[PASS] ut_unsqueeze_001
+[KMEM] Arena created: 8 KB at 0x50A1FA80
+[PASS] ut_cast_001
+[KMEM] Arena created: 8 KB at 0x50A21AC0
+[PASS] ut_reducesum_001
+[KMEM] Arena created: 8 KB at 0x50A23B00
+[PASS] ut_reducemean_001
+[KMEM] Arena created: 8 KB at 0x50A25B40
+[PASS] ut_reducemax_001
+[KMEM] Arena created: 8 KB at 0x50A27B80
+[PASS] ut_reducemin_001
+[KMEM] Arena created: 8 KB at 0x50A29BC0
+[PASS] ut_conv_001
+[KMEM] Arena created: 8 KB at 0x50A2BC00
+[PASS] ut_maxpool_001
+[KMEM] Arena created: 8 KB at 0x50A2DC40
+[PASS] ut_avgpool_001
+[KMEM] Arena created: 8 KB at 0x50A2FC80
+[ONNX] Loading protobuf format...
+  Data size: 82 bytes
+  IR version: 12
+  Graph size: 61 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 2 tensors
+[ONNX] Reader pos: 78 / expected end: 78
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Relu)
+[INFER] Iteration 2/5  (50 ms)
+[ONNX] Inference complete!
+Result: [3.000, 5.000, 7.000]
+[ONNX] Inference complete!
+[PASS] it_infer_001
+[KMEM] Arena created: 8 KB at 0x50A31CC0
+[ONNX] Loading protobuf format...
+  Data size: 100 bytes
+  IR version: 12
+  Graph size: 79 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 96 / expected end: 96
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Add)
+[INFER] Iteration 3/5  (50 ms)
+
+--- Running SimpleAddPython ---
+[KMEM] Arena created: 64 KB at 0x50D4BEC0
+[ONNX] Loading protobuf format...
+  Data size: 120 bytes
+  IR version: 12
+  Graph size: 104 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0xC
+[PARSE] Tensor name: B
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 116 / expected end: 116
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Graph validation: OK
+[ONNX] Starting inference...
+  Executing: add_node (Add)
+[ONNX] Inference complete!
+[PASS] it_infer_002
+[KMEM] Arena created: 8 KB at 0x50D5CF00
+[ONNX] Loading protobuf format...
+  Data size: 141 bytes
+  IR version: 12
+  Graph size: 120 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x4
+[PARSE] Tensor name: Two
+[ONNX] Graph parsed: 2 nodes, 5 tensors
+[ONNX] Reader pos: 137 / expected end: 137
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Add)
+[INFER] Iteration 4/5  (50 ms)
+[ONNX] Inference complete!
+Result: [3.000, 5.000, 7.000]
+  Executing:  (Mul)
+[INFER] Iteration 5/5  (50 ms)
+
+--- Running ComplexPython ---
+[KMEM] Arena created: 64 KB at 0x51077100
+[ONNX] Loading protobuf format...
+  Data size: 244 bytes
+  IR version: 12
+  Graph size: 227 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x4
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x30
+[PARSE] Tensor name: W
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0xC
+[PARSE] Tensor name: B
+[ONNX] Graph parsed: 3 nodes, 6 tensors
+[ONNX] Reader pos: 240 / expected end: 240
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Graph validation: OK
+[ONNX] Starting inference...
+  Executing: matmul_node (MatMul)
+[ONNX] Inference complete!
+[PASS] it_infer_003
+[ONNX] Starting inference...
+  Executing:  (Add)
+[INFER] Inference complete
+[THRD] Thread 'inference' exiting
+  Executing: add_node (Add)
+  Executing:  (Mul)
+  Executing: relu_node (Relu)
+[ONNX] Inference complete!
+[PASS] it_infer_004
+[PASS] it_timer_001
+[KMEM] Arena created: 8 KB at 0x51088140
+[ONNX] Loading protobuf format...
+  Data size: 100 bytes
+  IR version: 12
+  Graph size: 79 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 96 / expected end: 96
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[PASS] ct_parse_001
+[KMEM] Arena created: 8 KB at 0x5108A180
+[ONNX] Loading protobuf format...
+  Data size: 100 bytes
+  IR version: 12
+  Graph size: 79 bytes
+[ONNX] Parsing graph...
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 96 / expected end: 96
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[PASS] ct_parse_002
+[KMEM] Arena created: 8 KB at 0x5108C1C0
+[ONNX] Loading protobuf format...
+  Data size: 133 bytes
+  IR version: 12
+  Graph size: 112 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x2
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x18
+[PARSE] Tensor name: Y
+[ONNX] Graph parsed: 1 nodes, 3 tensors
+[ONNX] Reader pos: 129 / expected end: 129
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[PASS] ct_graph_001
+[SUMMARY] 46/46 passed
+[THRD] Thread 'test' exiting
+[ONNX] Inference complete!
+Result: [1.300, 1.500, 0.800]
+
+========================================
+
+[ONNX ] ONNX demo thread complete
+[THRD] Thread 'onnx' exiting
+[MON  ] Monitor thread started
+[MON  ] tick=0  heap 14236KB / 259108KB  threads=9  uptime=330ms
+[CLOCK] Wall-clock daemon started (1 s period)
+[MEMW ] Memory watchdog started (500 ms period)
+[RTMON] Runtime monitor started (2 s period)
+
+  ========================================
+   MiniOS v0.2  |  type 'help' for cmds  
+  ========================================
+
+miniOS> /bench/run_bench --model bench/models/squeezenet.onnx --input bench/inputs/squeezenet.bin --runs 1 --warmup 0 --out bench/results/squeezenet_dry.json
+[KMEM] Arena created: 131072 KB at 0x5108E200
+[ONNX] Loading protobuf format...
+  Data size: 4952956 bytes
+  IR version: 7
+  Graph size: 4952930 bytes
+[ONNX] Parsing graph...
+[PARSE] Tensor dim: 0x3E8
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: conv10_b_0
+[PARSE] Found raw_data len: 0xFA0
+[PARSE] Tensor dim: 0x3E8
+[PARSE] Tensor dim: 0x200
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: conv10_w_0
+[PARSE] Found raw_data len: 0x1F4000
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: conv1_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: conv1_w_0
+[PARSE] Found raw_data len: 0x1B00
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire2/expand1x1_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire2/expand1x1_w_0
+[PARSE] Found raw_data len: 0x1000
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire2/expand3x3_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire2/expand3x3_w_0
+[PARSE] Found raw_data len: 0x9000
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire2/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0x40
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire2/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x1000
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire3/expand1x1_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire3/expand1x1_w_0
+[PARSE] Found raw_data len: 0x1000
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire3/expand3x3_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire3/expand3x3_w_0
+[PARSE] Found raw_data len: 0x9000
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire3/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0x40
+[PARSE] Tensor dim: 0x10
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire3/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x2000
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire4/expand1x1_b_0
+[PARSE] Found raw_data len: 0x200
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire4/expand1x1_w_0
+[PARSE] Found raw_data len: 0x4000
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire4/expand3x3_b_0
+[PARSE] Found raw_data len: 0x200
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire4/expand3x3_w_0
+[PARSE] Found raw_data len: 0x24000
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire4/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0x80
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire4/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x4000
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire5/expand1x1_b_0
+[PARSE] Found raw_data len: 0x200
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire5/expand1x1_w_0
+[PARSE] Found raw_data len: 0x4000
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire5/expand3x3_b_0
+[PARSE] Found raw_data len: 0x200
+[PARSE] Tensor dim: 0x80
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire5/expand3x3_w_0
+[PARSE] Found raw_data len: 0x24000
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire5/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0x80
+[PARSE] Tensor dim: 0x20
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire5/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x8000
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire6/expand1x1_b_0
+[PARSE] Found raw_data len: 0x300
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire6/expand1x1_w_0
+[PARSE] Found raw_data len: 0x9000
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire6/expand3x3_b_0
+[PARSE] Found raw_data len: 0x300
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire6/expand3x3_w_0
+[PARSE] Found raw_data len: 0x51000
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire6/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0xC0
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire6/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0xC000
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire7/expand1x1_b_0
+[PARSE] Found raw_data len: 0x300
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire7/expand1x1_w_0
+[PARSE] Found raw_data len: 0x9000
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire7/expand3x3_b_0
+[PARSE] Found raw_data len: 0x300
+[PARSE] Tensor dim: 0xC0
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire7/expand3x3_w_0
+[PARSE] Found raw_data len: 0x51000
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire7/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0xC0
+[PARSE] Tensor dim: 0x30
+[PARSE] Tensor dim: 0x180
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire7/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x12000
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire8/expand1x1_b_0
+[PARSE] Found raw_data len: 0x400
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire8/expand1x1_w_0
+[PARSE] Found raw_data len: 0x10000
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire8/expand3x3_b_0
+[PARSE] Found raw_data len: 0x400
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire8/expand3x3_w_0
+[PARSE] Found raw_data len: 0x90000
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire8/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x180
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire8/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x18000
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire9/expand1x1_b_0
+[PARSE] Found raw_data len: 0x400
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire9/expand1x1_w_0
+[PARSE] Found raw_data len: 0x10000
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire9/expand3x3_b_0
+[PARSE] Found raw_data len: 0x400
+[PARSE] Tensor dim: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dim: 0x3
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire9/expand3x3_w_0
+[PARSE] Found raw_data len: 0x90000
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire9/squeeze1x1_b_0
+[PARSE] Found raw_data len: 0x100
+[PARSE] Tensor dim: 0x40
+[PARSE] Tensor dim: 0x200
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dim: 0x1
+[PARSE] Tensor dt: 0x1
+[PARSE] Tensor name: fire9/squeeze1x1_w_0
+[PARSE] Found raw_data len: 0x20000
+[PARSE] Tensor dt: 0x1
+[PARSE] Found float_data len: 0x4
+[PARSE] Tensor name: 122
+[ONNX] Graph parsed: 66 nodes, 121 tensors
+[ONNX] Reader pos: 4952950 / expected end: 4952950
+[ONNX] Building dependencies...
+[ONNX] Generating execution schedule...
+[ONNX] ✓ Model loaded successfully!
+[ONNX] Starting inference...
+  Executing:  (Conv)
+[MON  ] tick=1  heap 145308KB / 259108KB  threads=9  uptime=4830ms
+[MEMW ] heap 145308KB/259108KB (56%)
+[CLOCK] 00:00:01
+[RTMON] uptime=4830ms  threads=9  wall=00:00:01
+  Executing:  (Relu)
+  Executing:  (MaxPool)
+  Executing:  (Conv)
+[MON  ] tick=2  heap 145308KB / 259108KB  threads=9  uptime=5300ms
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+[MON  ] tick=3  heap 145308KB / 259108KB  threads=9  uptime=5670ms
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MON  ] tick=4  heap 145308KB / 259108KB  threads=9  uptime=7550ms
+[CLOCK] 00:00:02
+[MEMW ] heap 145308KB/259108KB (56%)
+[RTMON] uptime=7550ms  threads=9  wall=00:00:02
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (Conv)
+[MON  ] tick=5  heap 145308KB / 259108KB  threads=9  uptime=8350ms
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MON  ] tick=6  heap 145308KB / 259108KB  threads=9  uptime=8710ms
+[CLOCK] 00:00:03
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MON  ] tick=7  heap 145308KB / 259108KB  threads=9  uptime=10590ms
+[MEMW ] heap 145308KB/259108KB (56%)
+[RTMON] uptime=10590ms  threads=9  wall=00:00:03
+[CLOCK] 00:00:04
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (MaxPool)
+  Executing:  (Conv)
+[MON  ] Monitor exiting
+[THRD] Thread 'monitor' exiting
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[CLOCK] 00:00:05
+[MEMW ] heap 145308KB/259108KB (56%)
+[RTMON] uptime=13150ms  threads=9  wall=00:00:05
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[CLOCK] 00:00:06
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+[RTMON] uptime=15910ms  threads=9  wall=00:00:06
+[CLOCK] 00:00:07
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (MaxPool)
+  Executing:  (Conv)
+  Executing:  (Relu)
+  Executing:  (Conv)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+[CLOCK] 00:00:08
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (Conv)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[RTMON] uptime=18660ms  threads=9  wall=00:00:08
+[CLOCK] 00:00:09
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Conv)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[CLOCK] 00:00:10
+[MEMW ] heap 145308KB/259108KB (56%)
+[RTMON] uptime=21050ms  threads=9  wall=00:00:10
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+  Executing:  (Relu)
+  Executing:  (Conv)
+[CLOCK] 00:00:11
+  Executing:  (Relu)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+[RTMON] uptime=23620ms  threads=9  wall=00:00:11
+[CLOCK] 00:00:12
+  Executing:  (Relu)
+  Executing:  (Concat)
+  Executing:  (Dropout)
+  Executing:  (Conv)
+[MEMW ] heap 145308KB/259108KB (56%)
+[CLOCK] 00:00:13
+[RTMON] uptime=33840ms  threads=9  wall=00:00:13
+  Executing:  (Relu)
+  Executing:  (GlobalAveragePool)
+  Executing:  (Softmax)
+[ONNX] Inference complete!
+run_bench: failed output.
+
+miniOS> cat bench/results/squeezenet_dry.json
+cat: 'bench/results/squeezenet_dry.json': no such file
+[MEMW ] heap 145308KB/259108KB (56%)
+[CLOCK] 00:00:14
+[RTMON] uptime=599920ms  threads=9  wall=00:00:14
+
+miniOS> QEMU: Terminated
+

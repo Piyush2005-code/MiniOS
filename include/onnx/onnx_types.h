@@ -99,6 +99,15 @@ typedef enum {
     /* Normalization */
     ONNX_OP_LRN,
 
+    /* Inference No-ops */
+    ONNX_OP_DROPOUT,
+    
+    /* Tensor partition */
+    ONNX_OP_SPLIT,
+    
+    /* Tensor creation */
+    ONNX_OP_CONSTANT,
+
     ONNX_OP_MAX_VALUE
 } ONNX_OperatorType;
 
@@ -157,9 +166,14 @@ typedef struct {
     /* Activation attributes */
     float alpha;
     float beta;
+    bool fuse_relu;
     
     /* Other */
     int64_t keepdims;
+
+    /* Transpose attributes */
+    int64_t perm[ONNX_MAX_ATTR_INTS];
+    uint32_t perm_len;
 } ONNX_Attributes;
 
 /* ------------------------------------------------------------------ */
@@ -202,8 +216,8 @@ typedef struct ONNX_Node_s {
 /*  Computation Graph Structure                                       */
 /* ------------------------------------------------------------------ */
 
-#define ONNX_MAX_NODES      256
-#define ONNX_MAX_TENSORS    512
+#define ONNX_MAX_NODES      2048
+#define ONNX_MAX_TENSORS    4096
 #define ONNX_MAX_INPUTS     16
 #define ONNX_MAX_OUTPUTS    16
 

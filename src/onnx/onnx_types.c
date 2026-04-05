@@ -29,6 +29,8 @@ const char* ONNX_GetOperatorName(ONNX_OperatorType op_type)
         case ONNX_OP_BATCHNORM:  return "BatchNormalization";
         case ONNX_OP_GEMM:       return "Gemm";
         case ONNX_OP_CONCAT:     return "Concat";
+        case ONNX_OP_SPLIT:      return "Split";
+        case ONNX_OP_CONSTANT:   return "Constant";
         case ONNX_OP_LEAKYRELU:  return "LeakyRelu";
         case ONNX_OP_GLOBALAVERAGEPOOL: return "GlobalAveragePool";
         case ONNX_OP_SQUEEZE:    return "Squeeze";
@@ -50,6 +52,7 @@ const char* ONNX_GetOperatorName(ONNX_OperatorType op_type)
         case ONNX_OP_CLIP:       return "Clip";
         case ONNX_OP_IDENTITY:   return "Identity";
         case ONNX_OP_LRN:        return "LRN";
+        case ONNX_OP_DROPOUT:    return "Dropout";
         default:                 return "Unknown";
     }
 }

@@ -1,0 +1,37 @@
+#!/usr/bin/expect -f
+set timeout 2400
+log_file -noappend /tmp/minios_profile_squeezenet.log
+
+spawn qemu-system-aarch64 \
+    -machine virt -cpu cortex-a57 -m 2048M -smp 1 -nographic \
+    -kernel build/kernel.elf \
+    -drive if=pflash,file=flash.img,format=raw,index=1 \
+    -netdev user,id=net0,hostfwd=udp::9000-:9000 \
+    -device virtio-net-device,netdev=net0
+
+expect {
+    "miniOS> " { }
+    timeout { puts "TIMEOUT waiting for prompt"; exit 1 }
+}
+
+sleep 1
+send "/bench/run_bench --model bench/models/squeezenet.onnx --input bench/inputs/squeezenet.bin --runs 1 --warmup 1 --out bench/results/sq1.json\r"
+expect {
+    "results written to" { }
+    "run_bench:" { exp_continue }
+    timeout { puts "TIMEOUT during squeezenet"; exit 2 }
+}
+
+sleep 1
+send "cat bench/results/sq1.json\r"
+expect {
+    "miniOS> " { }
+    timeout { puts "TIMEOUT reading sq1.json"; exit 3 }
+}
+
+send "\x01"
+after 300
+send "x"
+expect eof
+
+exit 0
