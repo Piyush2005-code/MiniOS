@@ -90,7 +90,7 @@ graph TB
 ### Build and Run
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/Piyush2005-code/MiniOS.git && git checkout release/v1.2
+   git clone https://github.com/Piyush2005-code/MiniOS.git
    cd MiniOS
    ```
 2. **Compile the kernel**:
