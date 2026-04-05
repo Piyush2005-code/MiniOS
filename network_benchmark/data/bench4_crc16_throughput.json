@@ -1,0 +1,122 @@
+{
+  "8": {
+    "size_bytes": 8,
+    "iterations": 2000,
+    "mean_ns": 3627.982,
+    "min_ns": 3416,
+    "max_ns": 37083,
+    "p99_ns": 4333.42,
+    "throughput_mbs": 2.1029306460864468,
+    "ns_per_byte": 453.49775
+  },
+  "64": {
+    "size_bytes": 64,
+    "iterations": 2000,
+    "mean_ns": 27941.979,
+    "min_ns": 26834,
+    "max_ns": 113292,
+    "p99_ns": 32959.26,
+    "throughput_mbs": 2.1843533791933636,
+    "ns_per_byte": 436.593421875
+  },
+  "128": {
+    "size_bytes": 128,
+    "iterations": 2000,
+    "mean_ns": 56376.444,
+    "min_ns": 54083,
+    "max_ns": 140209,
+    "p99_ns": 65667.26,
+    "throughput_mbs": 2.1652715893184036,
+    "ns_per_byte": 440.44096875
+  },
+  "256": {
+    "size_bytes": 256,
+    "iterations": 2000,
+    "mean_ns": 111837.4355,
+    "min_ns": 107917,
+    "max_ns": 183417,
+    "p99_ns": 124543.66,
+    "throughput_mbs": 2.1829955587635053,
+    "ns_per_byte": 436.864982421875
+  },
+  "512": {
+    "size_bytes": 512,
+    "iterations": 2000,
+    "mean_ns": 222062.715,
+    "min_ns": 216208,
+    "max_ns": 346334,
+    "p99_ns": 239294.49,
+    "throughput_mbs": 2.198843916683627,
+    "ns_per_byte": 433.716240234375
+  },
+  "1024": {
+    "size_bytes": 1024,
+    "iterations": 2000,
+    "mean_ns": 444733.053,
+    "min_ns": 430875,
+    "max_ns": 585000,
+    "p99_ns": 485699.07999999996,
+    "throughput_mbs": 2.195839714211662,
+    "ns_per_byte": 434.3096220703125
+  },
+  "1448": {
+    "size_bytes": 1448,
+    "iterations": 2000,
+    "mean_ns": 638028.9515,
+    "min_ns": 607583,
+    "max_ns": 3897125,
+    "p99_ns": 819617.0799999997,
+    "throughput_mbs": 2.164353838348118,
+    "ns_per_byte": 440.62772893646405
+  },
+  "4096": {
+    "size_bytes": 4096,
+    "iterations": 2000,
+    "mean_ns": 1778819.223,
+    "min_ns": 1732792,
+    "max_ns": 3023875,
+    "p99_ns": 1949709.82,
+    "throughput_mbs": 2.195979191978858,
+    "ns_per_byte": 434.2820368652344
+  },
+  "8192": {
+    "size_bytes": 8192,
+    "iterations": 2000,
+    "mean_ns": 3641206.4415,
+    "min_ns": 3468250,
+    "max_ns": 31738750,
+    "p99_ns": 4347930.25,
+    "throughput_mbs": 2.1455800777891705,
+    "ns_per_byte": 444.483208190918
+  },
+  "16384": {
+    "size_bytes": 16384,
+    "iterations": 2000,
+    "mean_ns": 7327893.61,
+    "min_ns": 6964250,
+    "max_ns": 38328166,
+    "p99_ns": 10398680.239999998,
+    "throughput_mbs": 2.1322634895623165,
+    "ns_per_byte": 447.2591314697266
+  },
+  "32768": {
+    "size_bytes": 32768,
+    "iterations": 2000,
+    "mean_ns": 14674050.475,
+    "min_ns": 13833709,
+    "max_ns": 73346000,
+    "p99_ns": 31273164.16999999,
+    "throughput_mbs": 2.1296096843363217,
+    "ns_per_byte": 447.81648178100585
+  },
+  "65536": {
+    "size_bytes": 65536,
+    "iterations": 2000,
+    "mean_ns": 28494322.1545,
+    "min_ns": 27668791,
+    "max_ns": 110114042,
+    "p99_ns": 30960675.0,
+    "throughput_mbs": 2.1934194349708234,
+    "ns_per_byte": 434.78885123443604
+  }
+}

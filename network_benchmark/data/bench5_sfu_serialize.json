@@ -1,0 +1,65 @@
+{
+  "0": {
+    "payload_bytes": 0,
+    "wire_bytes": 24,
+    "serialize_mean_ns": 199.875,
+    "serialize_p99_ns": 209.0,
+    "deserialize_mean_ns": 256.6604,
+    "deserialize_p99_ns": 292.0,
+    "header_overhead_pct": 100.0
+  },
+  "8": {
+    "payload_bytes": 8,
+    "wire_bytes": 32,
+    "serialize_mean_ns": 3816.9236,
+    "serialize_p99_ns": 4625.410000000009,
+    "deserialize_mean_ns": 3827.0956,
+    "deserialize_p99_ns": 4500.0,
+    "header_overhead_pct": 75.0
+  },
+  "64": {
+    "payload_bytes": 64,
+    "wire_bytes": 88,
+    "serialize_mean_ns": 28050.4054,
+    "serialize_p99_ns": 32750.0,
+    "deserialize_mean_ns": 28123.906,
+    "deserialize_p99_ns": 32792.830000000016,
+    "header_overhead_pct": 27.27272727272727
+  },
+  "256": {
+    "payload_bytes": 256,
+    "wire_bytes": 280,
+    "serialize_mean_ns": 111853.5448,
+    "serialize_p99_ns": 125375.83000000002,
+    "deserialize_mean_ns": 112498.9874,
+    "deserialize_p99_ns": 125208.0,
+    "header_overhead_pct": 8.571428571428571
+  },
+  "512": {
+    "payload_bytes": 512,
+    "wire_bytes": 536,
+    "serialize_mean_ns": 223044.3332,
+    "serialize_p99_ns": 246545.1700000001,
+    "deserialize_mean_ns": 223383.3546,
+    "deserialize_p99_ns": 244917.41,
+    "header_overhead_pct": 4.477611940298507
+  },
+  "1024": {
+    "payload_bytes": 1024,
+    "wire_bytes": 1048,
+    "serialize_mean_ns": 451241.691,
+    "serialize_p99_ns": 488709.41000000003,
+    "deserialize_mean_ns": 448645.3796,
+    "deserialize_p99_ns": 494836.49000000005,
+    "header_overhead_pct": 2.2900763358778624
+  },
+  "1448": {
+    "payload_bytes": 1448,
+    "wire_bytes": 1472,
+    "serialize_mean_ns": 628479.8222,
+    "serialize_p99_ns": 675833.01,
+    "deserialize_mean_ns": 637215.7534,
+    "deserialize_p99_ns": 693333.42,
+    "header_overhead_pct": 1.6304347826086956
+  }
+}

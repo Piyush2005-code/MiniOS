@@ -1,0 +1,136 @@
+{
+  "simple_add [1,2]": {
+    "shape": [
+      1,
+      2
+    ],
+    "num_elements": 2,
+    "payload_bytes": 8,
+    "serialize_mean_ns": 243.25,
+    "serialize_p99_ns": 292.0,
+    "deserialize_mean_ns": 370.1445,
+    "deserialize_p99_ns": 417.0,
+    "sfu_build_mean_ns": 4060.653,
+    "sfu_build_p99_ns": 6042.0,
+    "sfu_note": "direct",
+    "total_overhead_us": 4.303903
+  },
+  "tiny_mlp [1,10]": {
+    "shape": [
+      1,
+      10
+    ],
+    "num_elements": 10,
+    "payload_bytes": 40,
+    "serialize_mean_ns": 368.5865,
+    "serialize_p99_ns": 542.8299999999992,
+    "deserialize_mean_ns": 394.5525,
+    "deserialize_p99_ns": 458.01,
+    "sfu_build_mean_ns": 24063.5115,
+    "sfu_build_p99_ns": 106003.75,
+    "sfu_note": "direct",
+    "total_overhead_us": 24.432098000000003
+  },
+  "mlp [1,64]": {
+    "shape": [
+      1,
+      64
+    ],
+    "num_elements": 64,
+    "payload_bytes": 256,
+    "serialize_mean_ns": 259.4335,
+    "serialize_p99_ns": 292.0,
+    "deserialize_mean_ns": 368.3645,
+    "deserialize_p99_ns": 417.0,
+    "sfu_build_mean_ns": 119414.5335,
+    "sfu_build_p99_ns": 293999.25999999983,
+    "sfu_note": "direct",
+    "total_overhead_us": 119.673967
+  },
+  "mlp [1,128]": {
+    "shape": [
+      1,
+      128
+    ],
+    "num_elements": 128,
+    "payload_bytes": 512,
+    "serialize_mean_ns": 273.3255,
+    "serialize_p99_ns": 333.01,
+    "deserialize_mean_ns": 402.1915,
+    "deserialize_p99_ns": 500.0,
+    "sfu_build_mean_ns": 306144.3275,
+    "sfu_build_p99_ns": 1252216.8399999987,
+    "sfu_note": "direct",
+    "total_overhead_us": 306.417653
+  },
+  "mlp [1,256]": {
+    "shape": [
+      1,
+      256
+    ],
+    "num_elements": 256,
+    "payload_bytes": 1024,
+    "serialize_mean_ns": 310.874,
+    "serialize_p99_ns": 417.0,
+    "deserialize_mean_ns": 420.377,
+    "deserialize_p99_ns": 500.0,
+    "sfu_build_mean_ns": 535765.805,
+    "sfu_build_p99_ns": 1464555.7499999998,
+    "sfu_note": "direct",
+    "total_overhead_us": 536.076679
+  },
+  "cnn [1,1,28,28]": {
+    "shape": [
+      1,
+      1,
+      28,
+      28
+    ],
+    "num_elements": 784,
+    "payload_bytes": 3136,
+    "serialize_mean_ns": 492.44785276073617,
+    "serialize_p99_ns": 832.75,
+    "deserialize_mean_ns": 603.2546012269938,
+    "deserialize_p99_ns": 4125.0,
+    "sfu_build_mean_ns": 1441889.9933333334,
+    "sfu_build_p99_ns": 2483549.4999999944,
+    "sfu_note": "multi-frag (3 frames)",
+    "total_overhead_us": 1442.3824411860942
+  },
+  "cnn [1,3,64,64]": {
+    "shape": [
+      1,
+      3,
+      64,
+      64
+    ],
+    "num_elements": 12288,
+    "payload_bytes": 49152,
+    "serialize_mean_ns": 7197.94,
+    "serialize_p99_ns": 142583.00000000064,
+    "deserialize_mean_ns": 2223.75,
+    "deserialize_p99_ns": 2906.660000000016,
+    "sfu_build_mean_ns": 21668793.28,
+    "sfu_build_p99_ns": 22842261.919999998,
+    "sfu_note": "multi-frag (34 frames)",
+    "total_overhead_us": 21675.991220000004
+  },
+  "cnn [1,3,224,224]": {
+    "shape": [
+      1,
+      3,
+      224,
+      224
+    ],
+    "num_elements": 150528,
+    "payload_bytes": 602112,
+    "serialize_mean_ns": 19609.59,
+    "serialize_p99_ns": 23327.41000000021,
+    "deserialize_mean_ns": 9581.19,
+    "deserialize_p99_ns": 15190.330000000013,
+    "sfu_build_mean_ns": null,
+    "sfu_build_p99_ns": null,
+    "sfu_note": "N/A \u2014 exceeds uint16 payload_len limit",
+    "total_overhead_us": 19.60959
+  }
+}

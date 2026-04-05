@@ -1,0 +1,101 @@
+{
+  "8": {
+    "payload_bytes": 8,
+    "udp_total": 50,
+    "sfu_total": 74,
+    "tcp_total": 62,
+    "udp_overhead_pct": 84.0,
+    "sfu_overhead_pct": 89.1891891891892,
+    "tcp_overhead_pct": 87.09677419354838,
+    "sfu_efficiency_pct": 10.81081081081081,
+    "extra_sfu_over_udp_pts": 5.189189189189193
+  },
+  "16": {
+    "payload_bytes": 16,
+    "udp_total": 58,
+    "sfu_total": 82,
+    "tcp_total": 70,
+    "udp_overhead_pct": 72.41379310344827,
+    "sfu_overhead_pct": 80.48780487804879,
+    "tcp_overhead_pct": 77.14285714285715,
+    "sfu_efficiency_pct": 19.51219512195122,
+    "extra_sfu_over_udp_pts": 8.074011774600521
+  },
+  "40": {
+    "payload_bytes": 40,
+    "udp_total": 82,
+    "sfu_total": 106,
+    "tcp_total": 94,
+    "udp_overhead_pct": 51.21951219512195,
+    "sfu_overhead_pct": 62.264150943396224,
+    "tcp_overhead_pct": 57.446808510638306,
+    "sfu_efficiency_pct": 37.735849056603776,
+    "extra_sfu_over_udp_pts": 11.044638748274274
+  },
+  "64": {
+    "payload_bytes": 64,
+    "udp_total": 106,
+    "sfu_total": 130,
+    "tcp_total": 118,
+    "udp_overhead_pct": 39.62264150943396,
+    "sfu_overhead_pct": 50.76923076923077,
+    "tcp_overhead_pct": 45.76271186440678,
+    "sfu_efficiency_pct": 49.23076923076923,
+    "extra_sfu_over_udp_pts": 11.146589259796805
+  },
+  "128": {
+    "payload_bytes": 128,
+    "udp_total": 170,
+    "sfu_total": 194,
+    "tcp_total": 182,
+    "udp_overhead_pct": 24.705882352941178,
+    "sfu_overhead_pct": 34.02061855670103,
+    "tcp_overhead_pct": 29.67032967032967,
+    "sfu_efficiency_pct": 65.97938144329896,
+    "extra_sfu_over_udp_pts": 9.314736203759853
+  },
+  "256": {
+    "payload_bytes": 256,
+    "udp_total": 298,
+    "sfu_total": 322,
+    "tcp_total": 310,
+    "udp_overhead_pct": 14.093959731543624,
+    "sfu_overhead_pct": 20.496894409937887,
+    "tcp_overhead_pct": 17.419354838709676,
+    "sfu_efficiency_pct": 79.5031055900621,
+    "extra_sfu_over_udp_pts": 6.402934678394264
+  },
+  "512": {
+    "payload_bytes": 512,
+    "udp_total": 554,
+    "sfu_total": 578,
+    "tcp_total": 566,
+    "udp_overhead_pct": 7.581227436823104,
+    "sfu_overhead_pct": 11.418685121107266,
+    "tcp_overhead_pct": 9.540636042402827,
+    "sfu_efficiency_pct": 88.58131487889274,
+    "extra_sfu_over_udp_pts": 3.8374576842841623
+  },
+  "1024": {
+    "payload_bytes": 1024,
+    "udp_total": 1066,
+    "sfu_total": 1090,
+    "tcp_total": 1078,
+    "udp_overhead_pct": 3.9399624765478425,
+    "sfu_overhead_pct": 6.055045871559633,
+    "tcp_overhead_pct": 5.009276437847866,
+    "sfu_efficiency_pct": 93.94495412844037,
+    "extra_sfu_over_udp_pts": 2.1150833950117907
+  },
+  "1448": {
+    "payload_bytes": 1448,
+    "udp_total": 1490,
+    "sfu_total": 1514,
+    "tcp_total": 1502,
+    "udp_overhead_pct": 2.8187919463087248,
+    "sfu_overhead_pct": 4.359313077939234,
+    "tcp_overhead_pct": 3.5952063914780292,
+    "sfu_efficiency_pct": 95.64068692206077,
+    "extra_sfu_over_udp_pts": 1.5405211316305092
+  }
+}
