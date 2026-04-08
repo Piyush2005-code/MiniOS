@@ -79,6 +79,15 @@ char HAL_UART_GetChar(void)
     return (char)(uart_read_reg(UART_DR) & 0xFF);
 }
 
+int HAL_UART_TryGetChar(char *c)
+{
+    if (uart_read_reg(UART_FR) & UART_FR_RXFE) {
+        return 0; /* Nothing available */
+    }
+    *c = (char)(uart_read_reg(UART_DR) & 0xFF);
+    return 1;
+}
+
 void HAL_UART_PutString(const char* s)
 {
     if (s == NULL) return;

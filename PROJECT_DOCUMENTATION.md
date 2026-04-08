@@ -20,9 +20,12 @@
 8. [Utility Libraries](#8-utility-libraries)
 9. [Type System & Status Codes](#9-type-system--status-codes)
 10. [Linker Script & Memory Map](#10-linker-script--memory-map)
-11. [Build System](#11-build-system)
-12. [Data Flow Diagrams](#12-data-flow-diagrams)
-13. [API Reference Summary](#13-api-reference-summary)
+11. [Background Daemons](#11-background-daemons)
+12. [Command Framework & Shell](#12-command-framework--shell)
+13. [Storage Subsystems](#13-storage-subsystems)
+14. [Build System](#14-build-system)
+15. [Data Flow Diagrams](#15-data-flow-diagrams)
+16. [API Reference Summary](#16-api-reference-summary)
 
 ---
 
@@ -219,7 +222,12 @@ MiniOS/
 │   ├── kernel/
 │   │   ├── kapi.h             # Master include: KERNEL_Init() + KERNEL_Start()
 │   │   ├── kmem.h             # Memory management API (bump/arena/pool)
-│   │   └── thread.h           # Threading API, cpu_context_t, thread_t TCB
+│   │   ├── thread.h           # Threading API, cpu_context_t, thread_t TCB
+│   │   ├── daemon.h           # Background daemon definitions
+│   │   ├── cmd.h              # Command Registry API
+│   │   ├── shell.h            # Interactive shell daemon API
+│   │   ├── ulfs.h             # ULFS in-memory file system API
+│   │   └── storage.h          # NVRAM abstraction layer API
 │   └── lib/
 │       └── string.h           # Freestanding string/memory utilities
 ├── src/
@@ -235,7 +243,13 @@ MiniOS/
 │   │   ├── main.c             # kernel_main(), IRQ dispatcher, demo threads
 │   │   ├── kmem.c             # Bump/arena/pool allocator implementation
 │   │   ├── thread.c           # TCB management, cooperative scheduler
-│   │   └── context.S          # cpu_context_switch + _thread_entry_trampoline
+│   │   ├── context.S          # cpu_context_switch + _thread_entry_trampoline
+│   │   ├── daemon.c           # Built-in background daemon configurations
+│   │   ├── cmd.c              # Command tokeniser and dispatch table
+│   │   ├── shell.c            # UART interactive shell loop
+│   │   ├── ulfs.c             # Ultra Lightweight File System core
+│   │   ├── fs_cmds.c          # FS shell extensions (ls, touch, etc.)
+│   │   └── storage.c          # Non-volatile storage formatting and abstraction
 │   └── lib/
 │       └── string.c           # memset, memcpy, strlen
 ├── scripts/
@@ -806,7 +820,76 @@ Master include aggregating all subsystem headers. Defines:
 
 ---
 
-## 11. Build System
+## 11. Background Daemons
+
+The daemon subsystem manages long-lived, low-priority cooperative threads that run periodic housekeeping tasks. They are registered before `SCHED_Start()` and sleep between activations.
+
+### Built-in Daemons
+
+| Daemon | Priority | Period | Description |
+|--------|----------|--------|-------------|
+| `clock_daemon` | LOW | 1000 ms | Wall-clock second counter |
+| `memwatch_daemon` | LOW | 500 ms | Heap usage monitor / high-watermark warning (warns at 80% usage) |
+| `runtime_daemon` | LOW | 2000 ms | Uptime and thread-count reporter |
+| `shell_daemon` | LOW | N/A | Interactive UART command shell |
+
+### Daemon API Reference (`daemon.h`)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `DAEMON_RegisterAll` | `Status DAEMON_RegisterAll(void)` | Creates and registers all built-in background daemons at `THREAD_PRIORITY_LOW`. |
+| `DAEMON_GetWallSeconds` | `uint64_t DAEMON_GetWallSeconds(void)` | Returns wall-clock seconds elapsed since boot (updated by `clock_daemon`). |
+
+---
+
+## 12. Command Framework & Shell
+
+Provides a static command table that maps string commands to respective handlers, alongside an interactive UART-based shell daemon.
+
+### Command API (`cmd.h`)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `CMD_Register` | `Status CMD_Register(name, help, handler)` | Registers a command into the global table. |
+| `CMD_Dispatch` | `void CMD_Dispatch(char *line)` | Tokenises an input line on whitespace and dispatches it to the appropriate handler. |
+| `CMD_RegisterBuiltins` | `void CMD_RegisterBuiltins(void)` | Registers built-in commands (help, uptime, memstat, ps, clear, echo). |
+| `CMD_GetTable` | `const cmd_entry_t *CMD_GetTable(uint32_t *count)` | Returns a pointer to the command table. |
+
+### Shell Daemon (`shell.h`)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `SHELL_RegisterDaemon` | `Status SHELL_RegisterDaemon(void)` | Creates the shell daemon thread (name "shell", `THREAD_PRIORITY_LOW`), rendering an interactive UART prompt (`miniOS> `). |
+
+---
+
+## 13. Storage Subsystems
+
+MiniOS implements a Dual-Store Ultra Lightweight File System (ULFS), offering seamless unification of a fast in-memory volatile root (`/`) and a persistent non-volatile mount (`/storage`) within a single unified path API.
+
+### 13.1 Volatile Store (Ramdisk)
+
+The primary tier of the ULFS resides entirely in memory, facilitating extremely fast temporal logging and intermediate ML inference artifacts.
+- **Capacity**: 2MB total (512 blocks of 4KB) allocated dynamically from the `KMEM_Alloc` heap upon boot.
+- **Characteristics**: Instantaneous access, completely ephemeral. All operations routed to paths outside of `/storage` natively write to this tier.
+
+### 13.2 Non-Volatile Store (NVRAM Shadow Buffer)
+
+To fulfill strict persistence requirements without compromising ML runtime performance, the secondary tier implements a robust Shadow Buffer architecture.
+- **Hardware Backend**: Interrogates QEMU `virt` machine's `pflash1` secondary flash bank mapped at `0x04000000` via Intel CFI01 command sequences (Erase/Program/Read).
+- **Shadow Buffer Strategy**: Due to the severe byte-level performance penalties characteristic of NOR flash memory mapped over an MMIO device, the flash sector (offset `0x40000`) is dumped entirely into a 2MB volatile shadow buffer on boot. All reads, writes, and modifications to the `/storage` path manipulate this shadow buffer in O(1) time. 
+- **Synchronization (`ULFS_Sync`)**: Modifying kernel commands dynamically evaluate a dirty-status flag (`g_is_dirty`). If dirtied, the `ULFS_Sync()` macro atomically flushes the 2MB shadow buffer back to the flash memory bank, guaranteeing that user configurations are cleanly persisted across ungraceful halts.
+
+### 13.3 CLI Tooling & File Manipulation
+
+The system exposes shell hooks for file maintenance across the Dual-Store API:
+- `cp <source> <destination>`: Reads the origin file block-by-block and duplicates it into the destination path, allowing files to be aggressively migrated from the volatile ramdisk to the non-volatile `/storage` mount, and vice-versa.
+- `mv <source> <destination>`: Effectively acts as `cp` followed instantaneously by `rm` to surgically transfer files between storage mediums.
+- Standard Hooks: `ls`, `mkdir`, `rm`, `cat`, `touch`, `write`, `stat`. All commands are deeply integrated with the `path_resolve()` router, making the transition between the two memory domains fully transparent to the user.
+
+---
+
+## 14. Build System
 
 ### Toolchain
 
@@ -858,9 +941,9 @@ kmem.c → thread.c → main.c         (Kernel)
 
 ---
 
-## 12. Data Flow Diagrams
+## 15. Data Flow Diagrams
 
-### 12.1 ML Inference Thread Execution Model
+### 15.1 ML Inference Thread Execution Model
 
 ```mermaid
 graph TD
@@ -877,7 +960,7 @@ graph TD
     RUN3 --> DONE[Inference Complete\nTHREAD_Exit]
 ```
 
-### 12.2 Kernel Subsystem Dependencies
+### 15.2 Kernel Subsystem Dependencies
 
 ```mermaid
 graph BT
@@ -899,7 +982,7 @@ graph BT
 
 ---
 
-## 13. API Reference Summary
+## 16. API Reference Summary
 
 ### Complete Function Index
 
@@ -935,6 +1018,10 @@ graph BT
 | | `HAL_Timer_Enable()` | void | Start timer + IRQ |
 | | `HAL_Timer_HandleIRQ()` | void | ISR: tick++ + reload |
 | | `HAL_Timer_GetSystemTicks()` | uint64_t | Monotonic ticks |
+| **flash.c** | `HAL_Flash_Init()` | Status | Flash Read Array Init |
+| | `HAL_Flash_Read(off, *d)` | Status | Reads 32-bit word |
+| | `HAL_Flash_Write(off, d)` | Status | CFI Program Word Phase |
+| | `HAL_Flash_EraseSector(off)` | Status | CFI Block Erase Phase |
 | **kmem.c** | `KMEM_Init()` | Status | Heap from linker |
 | | `KMEM_Alloc(size, align)` | void* | Bump alloc, O(1) |
 | | `KMEM_ArenaCreate(size)` | kmem_arena_t* | Resettable region |
@@ -955,6 +1042,17 @@ graph BT
 | | `SCHED_TimerTick()` | void | Wake sleeping threads |
 | | `SCHED_GetUptime()` | uint64_t | Uptime in ms |
 | **context.S** | `cpu_context_switch(old, new)` | void | Save/restore 104 bytes |
+| **daemon.c** | `DAEMON_RegisterAll()` | Status | Register built-in daemons |
+| | `DAEMON_GetWallSeconds()` | uint64_t | Wall-clock seconds |
+| **cmd.c** | `CMD_Register(...)` | Status | Register new command |
+| | `CMD_Dispatch(line)` | void | Parse & execute line |
+| | `CMD_RegisterBuiltins()` | void | Add core commands |
+| | `CMD_GetTable(count*)` | const cmd_entry_t* | Get cmd table array |
+| **shell.c** | `SHELL_RegisterDaemon()` | Status | Create shell thread |
+| **storage.c**| `STORAGE_Init()` | Status | Initializes flash formatting |
+| | `STORAGE_Read(off, buf, len)` | Status | Reads NV configuration |
+| | `STORAGE_Write(off, buf, len)` | Status | Writes buffered NV data |
+| | `STORAGE_EraseSector(off)` | Status | Safely format 256KB |
 
 ---
 

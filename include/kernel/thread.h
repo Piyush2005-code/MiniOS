@@ -232,6 +232,19 @@ uint32_t SCHED_GetThreadCount(void);
  */
 uint64_t SCHED_GetUptime(void);
 
+/**
+ * @brief Enable/disable FELIX scheduler mode.
+ *
+ * FELIX (Fast low-Interference eXecution) mode optimizes voluntary yields by
+ * skipping queue churn when no same-or-higher priority peer is ready.
+ */
+void SCHED_SetFelixMode(bool enable);
+
+/**
+ * @brief Query FELIX scheduler mode.
+ */
+bool SCHED_GetFelixMode(void);
+
 /* ------------------------------------------------------------------ */
 /*  Assembly routines (defined in context.S)                          */
 /* ------------------------------------------------------------------ */

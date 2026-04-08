@@ -23,6 +23,9 @@
 #include "hal/timer.h"
 #include "kernel/kmem.h"
 #include "kernel/thread.h"
+#include "kernel/ulfs.h"
+#include "kernel/fs_cmds.h"
+#include "kernel/storage.h"
 
 /* ------------------------------------------------------------------ */
 /*  Kernel Lifecycle API                                              */
