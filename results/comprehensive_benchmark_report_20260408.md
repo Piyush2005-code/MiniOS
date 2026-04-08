@@ -173,27 +173,27 @@ Interpretation:
 
 ### 6.1 Mean latency
 
-![Mean latency comparison](graphs/benchmark_mean_latency.svg)
+![Mean latency comparison](graphs/benchmark_mean_latency.jpg)
 
 ### 6.2 P95 latency
 
-![P95 latency comparison](graphs/benchmark_p95_latency.svg)
+![P95 latency comparison](graphs/benchmark_p95_latency.jpg)
 
 ### 6.3 Model load time
 
-![Model load comparison](graphs/benchmark_model_load.svg)
+![Model load comparison](graphs/benchmark_model_load.jpg)
 
 ### 6.4 Reported memory footprint
 
-![Memory comparison](graphs/benchmark_memory.svg)
+![Memory comparison](graphs/benchmark_memory.jpg)
 
 ### 6.5 Overall speedup
 
-![Speedup comparison](graphs/benchmark_speedup.svg)
+![Speedup comparison](graphs/benchmark_speedup.jpg)
 
 ### 6.6 Per-iteration stability
 
-![Stability comparison](graphs/benchmark_stability.svg)
+![Stability comparison](graphs/benchmark_stability.jpg)
 
 ## 7. Why This Benchmark Is Relevant to MiniOS Constraints
 
@@ -324,9 +324,9 @@ In short, MiniOS performs well here because the benchmark is measuring exactly t
 
 ### 12.2 Figure files
 
-- [benchmark_mean_latency.svg](graphs/benchmark_mean_latency.svg)
-- [benchmark_p95_latency.svg](graphs/benchmark_p95_latency.svg)
-- [benchmark_model_load.svg](graphs/benchmark_model_load.svg)
-- [benchmark_memory.svg](graphs/benchmark_memory.svg)
-- [benchmark_speedup.svg](graphs/benchmark_speedup.svg)
-- [benchmark_stability.svg](graphs/benchmark_stability.svg)
+- [benchmark_mean_latency.jpg](graphs/benchmark_mean_latency.jpg)
+- [benchmark_p95_latency.jpg](graphs/benchmark_p95_latency.jpg)
+- [benchmark_model_load.jpg](graphs/benchmark_model_load.jpg)
+- [benchmark_memory.jpg](graphs/benchmark_memory.jpg)
+- [benchmark_speedup.jpg](graphs/benchmark_speedup.jpg)
+- [benchmark_stability.jpg](graphs/benchmark_stability.jpg)
