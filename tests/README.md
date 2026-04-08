@@ -57,7 +57,12 @@ kernel logic (memory manager, scheduler, types) can be exercised without hardwar
 | `test_mem`     | `test_mem.c`     | UT-MEM-001..045 + CT-MEM-001..007     | 52    |
 | `test_sched`   | `test_sched.c`   | UT-SCHED-001..054 + CT-SCHED-001..014 | 68    |
 | `test_kapi`    | `test_kapi.c`    | CT-KAPI-001..004                      | 4     |
-| **Total**      |                  |                                       | **147** |
+| `test_string`  | `test_string.c`  | UT-STR-001..012                       | 12    |
+| `test_cmd`     | `test_cmd_component.c` | CT-CMD-001..011                 | 11    |
+| `test_fs_integration` | `test_fs_integration.c` | IT-FS-001..006           | 6     |
+| `test_network` | `test_network.c` | CT/IT/UT-NET-001..012                 | 12    |
+| `test_onnx`    | `test_onnx_runtime_parser.c` | CT/UT/IT-ONNX-001..014 (non-contiguous IDs) | 14    |
+| **Total**      |                  |                                       | **202** |
 
 ### Running Host Tests
 
@@ -71,6 +76,15 @@ make test_status     # UT-STAT-001..006
 make test_mem        # UT-MEM-001..045 + CT-MEM-001..007
 make test_sched      # UT-SCHED-001..054 + CT-SCHED-001..014
 make test_kapi       # CT-KAPI-001..004
+make test_string     # UT-STR-001..012
+make test_cmd        # CT-CMD-001..011
+make test_fs_integration  # IT-FS-001..006
+make test_network    # CT/IT/UT-NET-001..012
+make test_onnx       # ONNX parser/runtime regressions (001..014)
+
+# Known-gap (expected-fail) suite that captures general-purpose shell
+# expectations not implemented in MiniOS command parsing:
+make test_expected_fail
 
 # Clean build artifacts:
 make clean
@@ -81,6 +95,48 @@ From the project root:
 ```bash
 make -C tests/host test
 ```
+
+### Current Bug-Revealing Failures (09-Apr-2026)
+
+The host suite now includes several edge-case tests designed to expose real
+defects in parsing and validation logic. These are currently failing by design
+until the underlying code is fixed.
+
+1. `CT-CMD-007` (`test_cmd_component.c`): argument cap truncation bug.
+  - Failure: expected last capped token `k`, actual token `k l m`.
+  - Bug to fix: tokenizer should stop and terminate tokenization cleanly at
+    `CMD_MAX_ARGS` instead of returning a merged tail token.
+2. `CT-CMD-008` (`test_cmd_component.c`): empty command names accepted.
+  - Failure: registration returns success for `""`.
+  - Bug to fix: reject zero-length command names in `CMD_Register`.
+3. `CT-CMD-009` (`test_cmd_component.c`): whitespace in command names accepted.
+  - Failure: registration returns success for names containing spaces.
+  - Bug to fix: enforce token-safe command names (no whitespace separators).
+4. `CT-CMD-010` (`test_cmd_component.c`): exact duplicate names accepted.
+  - Failure: second registration of same name returns success.
+  - Bug to fix: prevent duplicate command table entries.
+5. `CT-CMD-011` (`test_cmd_component.c`): case-insensitive duplicates accepted.
+  - Failure: `CaseDup` and `casedup` can both register.
+  - Bug to fix: duplicate check must be case-insensitive.
+6. `UT-NET-010` (`test_network.c`): null handler accepted by `UDP_Bind`.
+  - Failure: expected reject (`-1`), actual success (`0`).
+  - Bug to fix: input validation should reject null callback pointers.
+7. `UT-NET-011` (`test_network.c`): UDP header length underflow accepted.
+  - Failure: malformed datagram is dispatched to handler.
+  - Bug to fix: enforce `udp.length >= sizeof(UDPHdr_t)` before dispatch.
+8. `UT-NET-012` (`test_network.c`): UDP declared length overflow accepted.
+  - Failure: datagram whose declared length exceeds frame length is dispatched.
+  - Bug to fix: enforce `udp.length <= received_frame_length`.
+9. `UT-ONNX-RUNTIME-013` (`test_onnx_runtime_parser.c`): prefix matching bug.
+  - Failure: `ExecuteUpTo("node")` matches `"node_exact"` and returns success.
+  - Bug to fix: require exact string match for node lookup.
+10. `UT-ONNX-RUNTIME-014` (`test_onnx_runtime_parser.c`): schedule membership bug.
+  - Failure: `ExecuteUpTo` reports success when target node is not in schedule.
+  - Bug to fix: return error if target node is absent from execution schedule.
+
+Until these defects are resolved, `make -C tests/host test` is expected to fail.
+Use individual targets when working pass-only areas (for example
+`test_string` and `test_fs_integration`).
 
 ### Notable Behaviours
 
@@ -149,13 +205,18 @@ AArch64 semihosting `SYS_EXIT`).
 
 ---
 
-## All-in-One CI Script
+## Unified Test Script
 
 ```bash
-bash scripts/run_tests.sh
+bash run_tests.sh
 ```
 
-Exits `0` only if **both** host tests and QEMU tests pass.
+Default run executes all host UT/CT/IT suites and verifies the expected-fail gap
+case. Use the QEMU-inclusive mode when needed:
+
+```bash
+bash run_tests.sh --with-qemu
+```
 
 ---
 

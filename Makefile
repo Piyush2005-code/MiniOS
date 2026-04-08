@@ -111,6 +111,8 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/onnx/onnx_test.c \
            $(SRC_DIR)/onnx/onnx_loader_demo.c
 
+endif
+
 # ---- Generated sources (initfs file embedding) ----
 GEN_SRCS = $(GEN_DIR)/initfs_data.c
 
@@ -208,9 +210,8 @@ test_qemu:
 
 # ---- Build and run QEMU tests inside Docker (no local QEMU required) ----
 test_qemu_docker:
-	@$(MAKE) TEST=1 $(TARGET_ELF)
-	@echo "=== Running QEMU Test Suite (Docker) ==="
-	@bash scripts/docker_qemu_test.sh
+    @echo "=== Running unified suite with QEMU ==="
+    @bash run_tests.sh --with-qemu
 
 # ---- Debug with GDB ----
 debug: $(TARGET_ELF)
