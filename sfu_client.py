@@ -2,7 +2,11 @@
 sfu_client.py — Python host client for the MiniOS Simple Framed UDP (SFU)
 inference server.
 
-Wire format (all little-endian):
+Supports both deployment targets:
+  * ESP8266MOD ESP-12E  — connect over Wi-Fi (default host = ESP8266 IP)
+  * QEMU virt (ARM64)  — loopback (pass host='127.0.0.1', timeout=0.5)
+
+Wire format (all little-endian, IDENTICAL on both targets):
   Offset  Size  Field
   ------  ----  -----
    0       4    magic        0xDEAD6969
@@ -15,6 +19,17 @@ Wire format (all little-endian):
   20       2    checksum     CRC16-CCITT over payload only
   22       2    payload_len
   24       N    payload      raw float32 LE values
+
+ESP8266 Quick Start:
+    from sfu_client import SFUClient
+    # Replace with your ESP8266's IP (shown in UART boot log)
+    client = SFUClient(host="192.168.1.100")  # Wi-Fi: uses 2.0s timeout
+    print(client.ping())
+    print(client.cmd("LIST_MODELS"))
+    print(client.infer([1.0, 2.0, 3.0, 4.0]))
+
+QEMU Quick Start:
+    client = SFUClient(host="127.0.0.1", timeout=0.5, retries=3)
 
 Dependencies: Python ≥ 3.8 stdlib + numpy only.
 """
@@ -109,20 +124,35 @@ class CRC16:
 #  SFU client
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+#  ESP8266 default target IP — update this to your ESP8266's IP address.
+#  The IP is printed on the UART console at boot:
+#    [BOOT] IP address: 192.168.x.x
+# ---------------------------------------------------------------------------
+ESP8266_DEFAULT_HOST = "192.168.1.100"
+
+
 class SFUClient:
     """UDP client that speaks the Simple Framed UDP (SFU) protocol.
+
+    Compatible with both deployment targets:
+      * ESP8266MOD ESP-12E (Wi-Fi, ~5–50 ms latency)
+      * QEMU virt ARM64    (loopback, <1 ms latency)
 
     Parameters
     ----------
     host : str
-        Server address (default ``'127.0.0.1'``).
+        Server IP address.
+        Default: ``ESP8266_DEFAULT_HOST`` (your ESP8266's Wi-Fi IP).
+        For QEMU: pass ``'127.0.0.1'``.
     port : int
-        Server UDP port (default ``9000``).
+        Server UDP port (default ``9000`` — matches SFU_PORT in firmware).
     timeout : float
-        Per-attempt socket receive timeout in seconds (default ``0.5``).
+        Per-attempt socket receive timeout in seconds.
+        Default ``2.0`` (suitable for Wi-Fi; use ``0.5`` for QEMU loopback).
     retries : int
         Number of retransmit attempts before raising ``TimeoutError``
-        (default ``3``).
+        (default ``5``; use ``3`` for QEMU).
     debug : bool
         When True, print every packet sent and received (default ``False``).
     skip_startup_ping : bool
@@ -132,10 +162,10 @@ class SFUClient:
 
     def __init__(
         self,
-        host: str = "127.0.0.1",
+        host: str = ESP8266_DEFAULT_HOST,
         port: int = 9000,
-        timeout: float = 0.5,
-        retries: int = 3,
+        timeout: float = 2.0,   # 2s for Wi-Fi (was 0.5s for QEMU loopback)
+        retries: int = 5,       # 5 retries for Wi-Fi (was 3 for QEMU)
         debug: bool = False,
         skip_startup_ping: bool = False,
     ):
@@ -157,25 +187,32 @@ class SFUClient:
     #  Internal helpers
     # ------------------------------------------------------------------
 
-    def _startup_check(self, max_attempts: int = 10, delay: float = 1.0) -> None:
+    def _startup_check(self, max_attempts: int = 10, delay: float = 1.5) -> None:
         """Attempt ping() up to *max_attempts* times before giving up.
 
-        Prints "Waiting for miniOS…" on each retry so the caller knows
-        QEMU hasn't finished booting yet.
+        Prints a waiting message on each retry — useful because the ESP8266
+        may take 3–8 s to connect to Wi-Fi after power-on.
+
+        For QEMU (loopback), connection is usually instant on attempt 1.
+        For ESP8266 (Wi-Fi), expect 3–5 retries during the first boot.
         """
         for attempt in range(1, max_attempts + 1):
             try:
                 rtt = self.ping()
-                if self.debug:
-                    print(f"[startup] connected after {attempt} attempt(s), RTT={rtt:.2f} ms")
+                print(f"[startup] connected to {self.host}:{self.port} "
+                      f"after {attempt} attempt(s), RTT={rtt:.2f} ms")
                 return
             except TimeoutError:
                 if attempt < max_attempts:
-                    print(f"Waiting for miniOS... (attempt {attempt}/{max_attempts})")
+                    print(f"Waiting for MiniOS-ESP8266... "
+                          f"(attempt {attempt}/{max_attempts}, "
+                          f"target={self.host}:{self.port})")
                     time.sleep(delay)
         raise TimeoutError(
-            f"miniOS did not respond after {max_attempts} ping attempts "
-            f"({self.host}:{self.port})"
+            f"MiniOS did not respond after {max_attempts} ping attempts "
+            f"({self.host}:{self.port})\n"
+            f"  Check: 1) ESP8266 powered on  2) Wi-Fi connected  "
+            f"3) IP correct in ESP8266_DEFAULT_HOST"
         )
 
     def _next_req_id(self) -> int:
