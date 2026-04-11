@@ -1,0 +1,43 @@
+,,,
+Date,Updates,Version_No.,Approved by
+20 Jan 2026,"Initial creation of SRS v1.0 covering full scope: ARM64 hardware abstraction, graph processing pipeline (dynamic shape support, full ONNX compliance), memory management, execution engine (multi-threaded, real-time guarantees), Ethernet communication stack, performance monitoring, and POSIX compatibility.",v1.0,Piyush Singh Bhati
+20 Jan 2026,Included comprehensive functional and non-functional requirements for ML inference unikernel.,v1.0,Piyush Singh Bhati
+21 Jan 2026,Defined initial sprint plan (10 weeks) and team structure.,v1.0,Baviskar Darpan Chandrashekhar
+21 Jan 2026,"Contained UML diagrams (component, deployment, use case, activity, class, sequence, timing) as placeholders.",v1.0,Baviskar Darpan Chandrashekhar
+1 Feb 2026,Major revision to v2.0 based on feasibility analysis and project scope refinement.,v2.0,Harshit
+1 Feb 2026,Changed dynamic tensor shapes → static shapes only (explicitly rejected).,v2.0,Harshit
+1 Feb 2026,Reduced full ONNX compliance → subset support with defined operator matrix (Appendix G).,v2.0,Harshit
+2 Feb 2026,Deferred Ethernet stack → UART only as primary interface (Ethernet future).,v2.0,Aashma
+2 Feb 2026,Replaced hard real-time guarantees → predictability focus with empirical timing bounds.,v2.0,Aashma
+3 Feb 2026,Switched multi-threaded execution → single-threaded cooperative model.,v2.0,Piyush Singh Bhati
+3 Feb 2026,Removed POSIX compatibility; introduced minimal custom API.,v2.0,Piyush Singh Bhati
+3 Feb 2026,Added operator support matrix (Appendix G).,v2.0,Piyush Singh Bhati
+3 Feb 2026,Added hardware platform specifications (Appendix H).,v2.0,Harshit
+3 Feb 2026,Added performance analysis summary (Appendix D) with research data.,v2.0,Piyush Singh Bhati
+3 Feb 2026,Added UART communication protocol specification (Appendix F).,v2.0,Piyush Singh Bhati
+4 Feb 2026,"Added requirement priority classifications (Critical, High, Medium, Low).",v2.0,Baviskar Darpan Chandrashekhar
+4 Feb 2026,"Expanded non-functional requirements: predictability, security, power, reliability.",v2.0,Baviskar Darpan Chandrashekhar
+4 Feb 2026,"Added detailed development methodology: sprint plan (14 weeks), risk management, coding standards.",v2.0,Piyush Singh Bhati
+4 Feb 2026,Added traceability matrix linking requirements to design components.,v2.0,Baviskar Darpan Chandrashekhar
+4 Feb 2026,"Updated UML diagrams to reflect architectural changes (component boundaries, simplified actors, added validation steps, deferred interrupt handling, end-to-end latency measurement).",v2.0,Baviskar Darpan Chandrashekhar
+4 Feb 2026,Removed dynamic shape support.,v2.0,Piyush Singh Bhati
+4 Feb 2026,Removed full ONNX operator set.,v2.0,Harshit
+4 Feb 2026,Removed Ethernet stack and networking.,v2.0,Aashma
+4 Feb 2026,Removed real-time guarantees.,v2.0,Aashma
+4 Feb 2026,Removed multi-threading and POSIX compatibility.,v2.0,Piyush Singh Bhati
+17 March 2026,"Finalized SRS v3.0 with complete architectural decisions, expanded non-functional requirements, and comprehensive appendices. Added detailed justification for ARM64 selection, unikernel architecture, and cooperative execution model. Included hardware-induced timing variation analysis.",v3.0,Piyush Singh Bhati; Harshit; Baviskar Darpan Chandrashekhar; Aashma
+18 March 2026,"Updated UML diagrams to v3.0 reflecting current architecture: component boundaries refined, deployment simplified, use case actors updated, activity validation steps enhanced, class diagram focused on core structures, sequence diagram with deferred interrupt handling, timing diagram with end-to-end latency measurement. Links added to images_v3 folder.",v3.0,Baviskar Darpan Chandrashekhar; Piyush Singh Bhati; Harshit
+18 March 2026,"Added comprehensive test case documentation with 246 passing tests across all subsystems. Included test environment specifications, team responsibility matrix, coverage summary, and requirement-to-test traceability matrix.",v3.0,Piyush Singh Bhati
+18 March 2026,"Enhanced development methodology section with detailed sprint plan (15 Jan – 10 Apr), current sprint backlog, alpha progression tracking, risk management strategies, and complete toolchain specifications.",v3.0,Baviskar Darpan Chandrashekhar
+18 March 2026,"Expanded appendices with glossary, acronyms, requirement templates, performance analysis summary, research basis citations, UART protocol specification, ONNX operator support matrix, and hardware platform specifications. Added comprehensive bibliography with 12 academic references.",v3.0,Harshit; Aashma
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+Links : ,SRS v1  -   https://github.com/Piyush2005-code/MiniOS/blob/SRS-and-Reports/SRS_Version1.0.pdf,,
+,,,
+,SRS v2  -   https://github.com/Piyush2005-code/MiniOS/blob/SRS-and-Reports/SRS_Version2.0.pdf,,
+,,,
+,SRS v3  -    https://github.com/Piyush2005-code/MiniOS/blob/SRS-and-Reports/SRS_Version3.0.pdf,,
