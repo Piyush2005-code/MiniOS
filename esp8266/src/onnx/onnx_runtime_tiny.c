@@ -42,7 +42,7 @@ static float   g_softmax_buf[ONNX_TINY_MAX_TENSORS > 32 ? 32 : ONNX_TINY_MAX_TEN
 /*  Internal: fast software-float helpers (no FPU on ESP8266)         */
 /* ------------------------------------------------------------------ */
 
-static float fast_exp(float x)
+static ICACHE_FLASH_ATTR float fast_exp(float x)
 {
     if (x < -10.0f) return 0.0f;
     if (x >  10.0f) return 22026.0f;
@@ -51,7 +51,7 @@ static float fast_exp(float x)
     return sum;
 }
 
-static float fast_sigmoid(float x)
+static ICACHE_FLASH_ATTR float fast_sigmoid(float x)
 {
     return 1.0f / (1.0f + fast_exp(-x));
 }
@@ -61,7 +61,7 @@ static float fast_sigmoid(float x)
 /*  Uses int16 accumulator to prevent overflow.                       */
 /* ------------------------------------------------------------------ */
 
-static void matmul_int8(
+static ICACHE_FLASH_ATTR void matmul_int8(
     const int8_t *A, const int8_t *B, int16_t *C,
     uint8_t M, uint8_t K, uint8_t N)
 {
@@ -80,7 +80,7 @@ static void matmul_int8(
 /*  Internal: ReLU on int16 accumulator → int8 output                */
 /* ------------------------------------------------------------------ */
 
-static void relu_int16_to_int8(
+static ICACHE_FLASH_ATTR void relu_int16_to_int8(
     const int16_t *in, int8_t *out, uint8_t n, int8_t zero_point)
 {
     for (uint8_t i = 0; i < n; i++) {
@@ -97,7 +97,7 @@ static void relu_int16_to_int8(
 /*  Internal: Softmax over float buffer                               */
 /* ------------------------------------------------------------------ */
 
-static void softmax_float(float *buf, uint8_t n)
+static ICACHE_FLASH_ATTR void softmax_float(float *buf, uint8_t n)
 {
     float max_v = buf[0];
     for (uint8_t i = 1; i < n; i++) if (buf[i] > max_v) max_v = buf[i];
@@ -116,7 +116,7 @@ static void softmax_float(float *buf, uint8_t n)
 /*  Internal: execute a single ONNX node                              */
 /* ------------------------------------------------------------------ */
 
-static Status execute_node(ONNX_Node *node, ONNX_Graph *graph)
+static ICACHE_FLASH_ATTR Status execute_node(ONNX_Node *node, ONNX_Graph *graph)
 {
     /* Helper: get tensor pointer by index */
     #define T(idx) (&graph->tensors[(idx)])
@@ -293,7 +293,7 @@ static Status execute_node(ONNX_Node *node, ONNX_Graph *graph)
 /*  Public API                                                        */
 /* ------------------------------------------------------------------ */
 
-Status ONNX_Runtime_Init(ONNX_InferenceContext *ctx, ONNX_Graph *graph,
+Status ICACHE_FLASH_ATTR ONNX_Runtime_Init(ONNX_InferenceContext *ctx, ONNX_Graph *graph,
                           uint32_t workspace_size)
 {
     (void)workspace_size; /* no dynamic workspace on ESP8266 */
@@ -304,7 +304,7 @@ Status ONNX_Runtime_Init(ONNX_InferenceContext *ctx, ONNX_Graph *graph,
     return STATUS_OK;
 }
 
-void ONNX_Runtime_Cleanup(ONNX_InferenceContext *ctx)
+void ICACHE_FLASH_ATTR ONNX_Runtime_Cleanup(ONNX_InferenceContext *ctx)
 {
     if (ctx) {
         ctx->graph = (ONNX_Graph *)0;
@@ -313,7 +313,7 @@ void ONNX_Runtime_Cleanup(ONNX_InferenceContext *ctx)
     }
 }
 
-Status ONNX_Runtime_InferenceSimple(
+Status ICACHE_FLASH_ATTR ONNX_Runtime_InferenceSimple(
     ONNX_InferenceContext *ctx,
     const void **in_ptrs,  uint32_t *in_sizes,  uint8_t num_inputs,
     void       **out_ptrs, uint32_t *out_sizes,  uint8_t num_outputs)
@@ -366,7 +366,7 @@ Status ONNX_Runtime_InferenceSimple(
     return STATUS_OK;
 }
 
-const char *ONNX_GetOperatorName(ONNX_OperatorType op)
+const char *ICACHE_FLASH_ATTR ONNX_GetOperatorName(ONNX_OperatorType op)
 {
     switch (op) {
         case ONNX_OP_ADD:      return "Add";

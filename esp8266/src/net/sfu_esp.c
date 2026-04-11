@@ -53,7 +53,7 @@ static void (*sfu_timeout_cb)(uint32_t) = (void(*)(uint32_t))0;
 /*  Timing helper                                                     */
 /* ------------------------------------------------------------------ */
 
-static uint32_t sfu_get_ms(void)
+static ICACHE_FLASH_ATTR uint32_t sfu_get_ms(void)
 {
     return HAL_Timer_GetSystemTicks() * HAL_Timer_GetTickPeriodMs();
 }
@@ -62,7 +62,7 @@ static uint32_t sfu_get_ms(void)
 /*  Internal: byte-by-byte memcpy                                     */
 /* ------------------------------------------------------------------ */
 
-static void sfu_memcpy(uint8_t *dst, const uint8_t *src, uint16_t len)
+static ICACHE_FLASH_ATTR void sfu_memcpy(uint8_t *dst, const uint8_t *src, uint16_t len)
 {
     for (uint16_t i = 0; i < len; i++) dst[i] = src[i];
 }
@@ -71,7 +71,7 @@ static void sfu_memcpy(uint8_t *dst, const uint8_t *src, uint16_t len)
 /*  Internal: known type validation                                   */
 /* ------------------------------------------------------------------ */
 
-static int sfu_is_known_type(uint8_t t)
+static ICACHE_FLASH_ATTR int sfu_is_known_type(uint8_t t)
 {
     return (t == SFU_MSG_INFER_REQUEST  ||
             t == SFU_MSG_INFER_RESPONSE ||
@@ -89,7 +89,7 @@ static int sfu_is_known_type(uint8_t t)
 /*  MUST match sfu_client.py CRC16.compute() exactly.                */
 /* ------------------------------------------------------------------ */
 
-uint16_t SFU_Checksum(uint8_t *payload, uint16_t len)
+uint16_t ICACHE_FLASH_ATTR SFU_Checksum(uint8_t *payload, uint16_t len)
 {
     if (!payload || len == 0) return 0u;
     uint16_t crc = 0xFFFFu;
@@ -107,7 +107,7 @@ uint16_t SFU_Checksum(uint8_t *payload, uint16_t len)
 /*  SFU_Validate                                                      */
 /* ------------------------------------------------------------------ */
 
-int SFU_Validate(sfu_header_t *hdr)
+int ICACHE_FLASH_ATTR SFU_Validate(sfu_header_t *hdr)
 {
     if (hdr->magic   != SFU_MAGIC)   return -1;
     if (hdr->version != SFU_VERSION) return -1;
@@ -119,7 +119,7 @@ int SFU_Validate(sfu_header_t *hdr)
 /*  SFU_Serialize                                                     */
 /* ------------------------------------------------------------------ */
 
-int SFU_Serialize(sfu_header_t *hdr, uint8_t *payload,
+int ICACHE_FLASH_ATTR SFU_Serialize(sfu_header_t *hdr, uint8_t *payload,
                   uint8_t *out_buf, uint16_t *out_len)
 {
     uint16_t plen = hdr->payload_len;
@@ -135,7 +135,7 @@ int SFU_Serialize(sfu_header_t *hdr, uint8_t *payload,
 /*  SFU_Deserialize                                                   */
 /* ------------------------------------------------------------------ */
 
-int SFU_Deserialize(uint8_t *buf, uint16_t len,
+int ICACHE_FLASH_ATTR SFU_Deserialize(uint8_t *buf, uint16_t len,
                     sfu_header_t *hdr_out,
                     uint8_t **payload_out, uint16_t *payload_len_out)
 {
@@ -159,7 +159,7 @@ int SFU_Deserialize(uint8_t *buf, uint16_t len,
 /*  SFU_SendRaw                                                       */
 /* ------------------------------------------------------------------ */
 
-int SFU_SendRaw(uint32_t dst_ip, uint16_t dst_port,
+int ICACHE_FLASH_ATTR SFU_SendRaw(uint32_t dst_ip, uint16_t dst_port,
                 uint8_t msg_type, uint32_t req_id,
                 uint8_t *payload, uint16_t payload_len)
 {
@@ -191,18 +191,18 @@ int SFU_SendRaw(uint32_t dst_ip, uint16_t dst_port,
 /*  SFU_SendPong / SFU_SendNack                                       */
 /* ------------------------------------------------------------------ */
 
-int SFU_SendPing(uint32_t dst_ip, uint16_t dst_port)
+int ICACHE_FLASH_ATTR SFU_SendPing(uint32_t dst_ip, uint16_t dst_port)
 {
     return SFU_SendRaw(dst_ip, dst_port, SFU_MSG_PING,
                        sfu_req_id_counter++, (uint8_t *)0, 0u);
 }
 
-void SFU_SendPong(uint32_t dst_ip, uint16_t dst_port, uint32_t req_id)
+void ICACHE_FLASH_ATTR SFU_SendPong(uint32_t dst_ip, uint16_t dst_port, uint32_t req_id)
 {
     SFU_SendRaw(dst_ip, dst_port, SFU_MSG_PONG, req_id, (uint8_t *)0, 0u);
 }
 
-void SFU_SendNack(uint32_t dst_ip, uint16_t dst_port, uint32_t req_id)
+void ICACHE_FLASH_ATTR SFU_SendNack(uint32_t dst_ip, uint16_t dst_port, uint32_t req_id)
 {
     SFU_SendRaw(dst_ip, dst_port, SFU_MSG_NACK, req_id, (uint8_t *)0, 0u);
 }
@@ -211,7 +211,7 @@ void SFU_SendNack(uint32_t dst_ip, uint16_t dst_port, uint32_t req_id)
 /*  SFU_OnReceive — packet dispatch                                   */
 /* ------------------------------------------------------------------ */
 
-void SFU_OnReceive(uint32_t src_ip, uint16_t src_port,
+void ICACHE_FLASH_ATTR SFU_OnReceive(uint32_t src_ip, uint16_t src_port,
                    uint8_t *buf, uint16_t len)
 {
     sfu_header_t hdr;
@@ -280,15 +280,15 @@ void SFU_OnReceive(uint32_t src_ip, uint16_t src_port,
 /*  Registration / stats                                              */
 /* ------------------------------------------------------------------ */
 
-void SFU_SetInferHandler(sfu_infer_handler_t h) { sfu_infer_handler = h; }
-void SFU_SetCmdHandler(sfu_cmd_handler_t h)     { sfu_cmd_handler   = h; }
-void SFU_GetStats(sfu_stats_t *out) { if (out) *out = sfu_stats; }
+void ICACHE_FLASH_ATTR SFU_SetInferHandler(sfu_infer_handler_t h) { sfu_infer_handler = h; }
+void ICACHE_FLASH_ATTR SFU_SetCmdHandler(sfu_cmd_handler_t h)     { sfu_cmd_handler   = h; }
+void ICACHE_FLASH_ATTR SFU_GetStats(sfu_stats_t *out) { if (out) *out = sfu_stats; }
 
 /* ------------------------------------------------------------------ */
 /*  SFU_Tick — retransmission timer (called every 100ms by os_timer)  */
 /* ------------------------------------------------------------------ */
 
-void SFU_Tick(void)
+void ICACHE_FLASH_ATTR SFU_Tick(void)
 {
     /* NOTE: No VNIC_Poll() — espconn is interrupt-driven on ESP8266 */
     uint32_t now = sfu_get_ms();
@@ -313,7 +313,7 @@ void SFU_Tick(void)
 /*  SFU_SelfTest                                                      */
 /* ------------------------------------------------------------------ */
 
-void SFU_SelfTest(void)
+void ICACHE_FLASH_ATTR SFU_SelfTest(void)
 {
     HAL_UART_PutString("[SFU ] self-test...\n");
 
@@ -354,7 +354,7 @@ void SFU_SelfTest(void)
 /*  SFU_Init                                                          */
 /* ------------------------------------------------------------------ */
 
-void SFU_Init(void)
+void ICACHE_FLASH_ATTR SFU_Init(void)
 {
     sfu_req_id_counter = 1u;
     for (int i = 0; i < SFU_MAX_INFLIGHT; i++) sfu_inflight[i].in_use = 0;

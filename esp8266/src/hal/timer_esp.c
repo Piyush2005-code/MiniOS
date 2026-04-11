@@ -18,6 +18,7 @@
 #include "osapi.h"
 #include "os_type.h"
 #include "ets_sys.h"
+#include "user_interface.h"
 
 /* ------------------------------------------------------------------ */
 /*  Module State                                                      */
@@ -136,7 +137,7 @@ void ICACHE_FLASH_ATTR HAL_Timer_Enable(void)
         os_timer_disarm(&g_tick_timer);
     }
 
-    os_timer_setfn(&g_tick_timer, (os_timer_func_t *)timer_tick_cb, NULL);
+    os_timer_setfn(&g_tick_timer, (os_timer_func_t)timer_tick_cb, NULL);
     /* Repeating timer */
     os_timer_arm(&g_tick_timer, g_tick_period_ms, 1);
     g_timer_active = true;

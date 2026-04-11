@@ -22,7 +22,7 @@
 /*  Internal: string compare                                          */
 /* ------------------------------------------------------------------ */
 
-static int str_eq(const char *a, const char *b)
+static ICACHE_FLASH_ATTR int str_eq(const char *a, const char *b)
 {
     while (*a && *b && *a == *b) { a++; b++; }
     return (*a == *b);
@@ -32,7 +32,7 @@ static int str_eq(const char *a, const char *b)
 /*  Internal: zero-fill                                               */
 /* ------------------------------------------------------------------ */
 
-static void mem_zero(void *p, uint32_t n)
+static ICACHE_FLASH_ATTR void mem_zero(void *p, uint32_t n)
 {
     uint8_t *b = (uint8_t *)p;
     for (uint32_t i = 0; i < n; i++) b[i] = 0;
@@ -56,7 +56,7 @@ static float  g_pre_softmax_buf[TINY_MLP_OUTPUT_SIZE];
 /*  ONNX_LoadEmbedded — load a named model into graph                 */
 /* ------------------------------------------------------------------ */
 
-Status ONNX_LoadEmbedded(ONNX_Graph *graph, const char *model_name)
+Status ICACHE_FLASH_ATTR ONNX_LoadEmbedded(ONNX_Graph *graph, const char *model_name)
 {
     if (!graph || !model_name) return STATUS_ERROR_INVALID_ARGUMENT;
 

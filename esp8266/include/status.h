@@ -73,7 +73,7 @@ static inline const char* STATUS_ToString(Status s)
         case STATUS_ERROR_SHAPE_MISMATCH:       return "ERR_SHAPE";
         case STATUS_ERROR_COMM_FAILURE:         return "ERR_COMM";
         case STATUS_ERROR_CRC_MISMATCH:         return "ERR_CRC";
-        case STATUS_ERROR_OUT_OF_MEMORY:        return "ERR_OOM";
+        case STATUS_ERROR_POOL_EXHAUSTED:       return "ERR_POOL";
         case STATUS_ERROR_WIFI_NOT_CONNECTED:   return "ERR_WIFI";
         case STATUS_ERROR_WIFI_TIMEOUT:         return "ERR_WIFI_TIMEOUT";
         default:                                return "ERR_UNKNOWN";

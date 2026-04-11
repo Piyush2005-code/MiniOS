@@ -30,7 +30,7 @@
 /* ------------------------------------------------------------------ */
 
 static ONNX_Graph            g_graph;
-static ONNX_InferenceContext g_ctx;
+ONNX_InferenceContext g_ctx;
 static uint8_t               g_model_loaded = 0;
 static char                  g_active_model[INFER_MODEL_NAME_MAX] = "none";
 
@@ -43,23 +43,23 @@ static uint8_t g_resp_buf[INFER_MAX_OUTPUT_FLOATS * 4]; /* float32 bytes */
 /*  Internal helpers                                                  */
 /* ------------------------------------------------------------------ */
 
-static void is_puts(const char *s) { HAL_UART_PutString(s); }
-static void is_putu(uint32_t v)    { HAL_UART_PutDec(v); }
+static ICACHE_FLASH_ATTR void is_puts(const char *s) { HAL_UART_PutString(s); }
+static ICACHE_FLASH_ATTR void is_putu(uint32_t v)    { HAL_UART_PutDec(v); }
 
-static int is_strcmp(const char *a, const char *b)
+static ICACHE_FLASH_ATTR int is_strcmp(const char *a, const char *b)
 {
     while (*a && *b && *a == *b) { a++; b++; }
     return (*a == *b) ? 0 : 1;
 }
 
-static void is_strncpy(char *dst, const char *src, uint16_t max)
+static ICACHE_FLASH_ATTR void is_strncpy(char *dst, const char *src, uint16_t max)
 {
     uint16_t i = 0;
     while (i < max - 1 && src[i]) { dst[i] = src[i]; i++; }
     dst[i] = '\0';
 }
 
-static void infer_memcpy(uint8_t *dst, const uint8_t *src, uint16_t len)
+static ICACHE_FLASH_ATTR void infer_memcpy(uint8_t *dst, const uint8_t *src, uint16_t len)
 {
     for (uint16_t i = 0; i < len; i++) dst[i] = src[i];
 }
@@ -68,7 +68,7 @@ static void infer_memcpy(uint8_t *dst, const uint8_t *src, uint16_t len)
 /*  INFER_SelectModel / INFER_GetActiveModel                          */
 /* ------------------------------------------------------------------ */
 
-int INFER_SelectModel(const char *name)
+int ICACHE_FLASH_ATTR INFER_SelectModel(const char *name)
 {
     Status s = ONNX_LoadEmbedded(&g_graph, name);
     if (s != STATUS_OK) return -1;
@@ -86,13 +86,13 @@ int INFER_SelectModel(const char *name)
     return 0;
 }
 
-const char *INFER_GetActiveModel(void) { return g_active_model; }
+const char *ICACHE_FLASH_ATTR INFER_GetActiveModel(void) { return g_active_model; }
 
 /* ------------------------------------------------------------------ */
 /*  INFER_ListModels                                                  */
 /* ------------------------------------------------------------------ */
 
-void INFER_ListModels(void)
+void ICACHE_FLASH_ATTR INFER_ListModels(void)
 {
     is_puts("\n  Available embedded models:\n");
     is_puts("  * tiny_mlp  (4->8->4, int8, ReLU+Softmax)\n");
@@ -105,7 +105,7 @@ void INFER_ListModels(void)
 /*  INFER_OnCmd — handles SFU_MSG_CMD packets from sfu_client.py     */
 /* ------------------------------------------------------------------ */
 
-void INFER_OnCmd(uint32_t src_ip, uint16_t src_port,
+void ICACHE_FLASH_ATTR INFER_OnCmd(uint32_t src_ip, uint16_t src_port,
                  uint32_t req_id, const char *cmd, uint16_t cmd_len)
 {
     (void)cmd_len;
@@ -155,7 +155,7 @@ void INFER_OnCmd(uint32_t src_ip, uint16_t src_port,
 /*  INFER_OnRequest — handles SFU_MSG_INFER_REQUEST                   */
 /* ------------------------------------------------------------------ */
 
-void INFER_OnRequest(uint32_t src_ip, uint16_t src_port,
+void ICACHE_FLASH_ATTR INFER_OnRequest(uint32_t src_ip, uint16_t src_port,
                      uint32_t req_id, uint8_t *payload, uint16_t payload_len)
 {
     /* Validate: payload must be N×4 bytes of float32 */
@@ -226,7 +226,7 @@ void INFER_OnRequest(uint32_t src_ip, uint16_t src_port,
 /*  INFER_Init                                                        */
 /* ------------------------------------------------------------------ */
 
-void INFER_Init(void)
+void ICACHE_FLASH_ATTR INFER_Init(void)
 {
     /* Load the default model from user_config.h */
     if (INFER_SelectModel(DEFAULT_MODEL) != 0) {

@@ -44,7 +44,7 @@ static os_timer_t g_shell_timer;
 /*  Internal: minimal strtok-style tokenizer                          */
 /* ------------------------------------------------------------------ */
 
-static uint8_t tokenize(char *line, char *argv[], uint8_t max_args)
+static ICACHE_FLASH_ATTR uint8_t tokenize(char *line, char *argv[], uint8_t max_args)
 {
     uint8_t argc = 0;
     char *p = line;
@@ -62,7 +62,7 @@ static uint8_t tokenize(char *line, char *argv[], uint8_t max_args)
 /*  Internal: parse float from string                                 */
 /* ------------------------------------------------------------------ */
 
-static float parse_float(const char *s)
+static ICACHE_FLASH_ATTR float parse_float(const char *s)
 {
     float sign = 1.0f, result = 0.0f, frac = 0.0f, fdiv = 10.0f;
     int after_dot = 0;
@@ -83,7 +83,7 @@ static float parse_float(const char *s)
 /*  Command handlers                                                  */
 /* ------------------------------------------------------------------ */
 
-static void cmd_help(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_help(uint8_t argc, char *argv[])
 {
     (void)argc; (void)argv;
     HAL_UART_PutString(
@@ -99,13 +99,13 @@ static void cmd_help(uint8_t argc, char *argv[])
     );
 }
 
-static void cmd_models(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_models(uint8_t argc, char *argv[])
 {
     (void)argc; (void)argv;
     INFER_ListModels();
 }
 
-static void cmd_model(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_model(uint8_t argc, char *argv[])
 {
     if (argc < 2) {
         HAL_UART_PutString("Active model: ");
@@ -124,7 +124,7 @@ static void cmd_model(uint8_t argc, char *argv[])
     }
 }
 
-static void cmd_infer(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_infer(uint8_t argc, char *argv[])
 {
     if (argc < 2) {
         HAL_UART_PutString("usage: infer <f1> <f2> ...\n");
@@ -176,7 +176,7 @@ static void cmd_infer(uint8_t argc, char *argv[])
     HAL_UART_PutString("]\n");
 }
 
-static void cmd_status(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_status(uint8_t argc, char *argv[])
 {
     (void)argc; (void)argv;
     uint32_t free_heap = system_get_free_heap_size();
@@ -194,7 +194,7 @@ static void cmd_status(uint8_t argc, char *argv[])
     HAL_UART_PutString("=============================\n");
 }
 
-static void cmd_wifi(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_wifi(uint8_t argc, char *argv[])
 {
     (void)argc; (void)argv;
     char ip[16];
@@ -215,13 +215,13 @@ static void cmd_wifi(uint8_t argc, char *argv[])
     HAL_UART_PutString(" dBm\n");
 }
 
-static void cmd_reconnect(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_reconnect(uint8_t argc, char *argv[])
 {
     (void)argc; (void)argv;
     HAL_WiFi_Reconnect();
 }
 
-static void cmd_reset(uint8_t argc, char *argv[])
+static ICACHE_FLASH_ATTR void cmd_reset(uint8_t argc, char *argv[])
 {
     (void)argc; (void)argv;
     HAL_UART_PutString("Resetting...\n");
@@ -252,7 +252,7 @@ static const shell_cmd_t g_cmds[] = {
 /*  Internal: dispatch line                                           */
 /* ------------------------------------------------------------------ */
 
-static void shell_dispatch(char *line)
+static ICACHE_FLASH_ATTR void shell_dispatch(char *line)
 {
     char *argv[SHELL_ARGC_MAX];
     uint8_t argc = tokenize(line, argv, SHELL_ARGC_MAX);
@@ -305,11 +305,11 @@ static void ICACHE_FLASH_ATTR shell_poll_cb(void *arg)
 /*  Public: SHELL_Init                                                */
 /* ------------------------------------------------------------------ */
 
-void SHELL_Init(void)
+void ICACHE_FLASH_ATTR SHELL_Init(void)
 {
     g_line_pos = 0;
     os_timer_disarm(&g_shell_timer);
-    os_timer_setfn(&g_shell_timer, (os_timer_func_t *)shell_poll_cb, NULL);
+    os_timer_setfn(&g_shell_timer, (os_timer_func_t)shell_poll_cb, NULL);
     os_timer_arm(&g_shell_timer, 20, 1); /* poll every 20ms */
     HAL_UART_PutString("\nMiniOS-ESP8266 shell ready. Type 'help'.\n");
     HAL_UART_PutString("minios> ");

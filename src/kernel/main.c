@@ -15,7 +15,6 @@
 #include "types.h"
 #include "status.h"
 #include "hal/uart.h"
-#include "hal/mmu.h"
 #include "hal/arch.h"
 #include "hal/gic.h"
 #include "hal/timer.h"
@@ -40,6 +39,10 @@
 #include "net/sfu.h"
 #include "net/infer_server.h"
 #include "net/net_cmds.h"
+
+#ifdef ARCH_ARM64
+#include "hal/mmu.h"
+#endif
 
 #ifndef MINIOS_BENCH_FAST_BOOT
 #define MINIOS_BENCH_FAST_BOOT 1
@@ -310,12 +313,16 @@ void kernel_main(void)
     install_vectors();
     HAL_UART_PutString("[BOOT] Exception vectors installed\n");
 
+#ifdef ARCH_ARM64
     /* ---- Step 3: Initialize MMU ---- */
     HAL_UART_PutString("[BOOT] Initializing MMU...\n");
     status = HAL_MMU_Init();
     HAL_UART_PutString("[BOOT] MMU status: ");
     HAL_UART_PutString(STATUS_ToString(status));
     HAL_UART_PutString("\n");
+#else
+    HAL_UART_PutString("[BOOT] MMU init skipped on flat-memory target\n");
+#endif
 
     /* ---- Step 4: Initialize kernel memory manager ---- */
     HAL_UART_PutString("[BOOT] Initializing memory manager...\n");

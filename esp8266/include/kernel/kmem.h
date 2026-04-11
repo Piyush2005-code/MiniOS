@@ -30,8 +30,12 @@
 typedef struct {
     uint32_t heap_total;
     uint32_t heap_used;
-    uint32_t heap_free;
+    uint32_t heap_peak;
     uint32_t alloc_count;
+    uint32_t arena_total;
+    uint32_t arena_used;
+    uint32_t pool_total;
+    uint32_t pool_used;
 } kmem_stats_t;
 
 /* ------------------------------------------------------------------ */

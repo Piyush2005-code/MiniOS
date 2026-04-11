@@ -35,6 +35,7 @@ static struct {
     uint8_t *current;
     uint8_t *end;
     uint32_t used;
+    uint32_t peak;
     uint32_t alloc_count;
     bool     initialized;
 } g_heap;
@@ -43,7 +44,7 @@ static struct {
 /*  Internal: align pointer upward                                    */
 /* ------------------------------------------------------------------ */
 
-static uint8_t *align_up(uint8_t *ptr, uint32_t align)
+static ICACHE_FLASH_ATTR uint8_t *align_up(uint8_t *ptr, uint32_t align)
 {
     if (align <= 1) return ptr;
     uint32_t addr = (uint32_t)(uintptr_t)ptr;
@@ -56,12 +57,13 @@ static uint8_t *align_up(uint8_t *ptr, uint32_t align)
 /*  KMEM_Init                                                         */
 /* ------------------------------------------------------------------ */
 
-Status KMEM_Init(void)
+Status ICACHE_FLASH_ATTR KMEM_Init(void)
 {
     g_heap.base        = g_heap_storage;
     g_heap.current     = align_up(g_heap_storage, KMEM_MIN_ALIGN);
     g_heap.end         = g_heap_storage + KMEM_HEAP_SIZE;
     g_heap.used        = 0;
+    g_heap.peak        = 0;
     g_heap.alloc_count = 0;
     g_heap.initialized = true;
 
@@ -78,7 +80,7 @@ Status KMEM_Init(void)
 /*  KMEM_Alloc                                                        */
 /* ------------------------------------------------------------------ */
 
-void *KMEM_Alloc(uint32_t size, uint32_t alignment)
+void *ICACHE_FLASH_ATTR KMEM_Alloc(uint32_t size, uint32_t alignment)
 {
     if (!g_heap.initialized || size == 0) return (void *)0;
     if (alignment < KMEM_MIN_ALIGN) alignment = KMEM_MIN_ALIGN;
@@ -100,7 +102,10 @@ void *KMEM_Alloc(uint32_t size, uint32_t alignment)
     }
 
     g_heap.current = next;
-    g_heap.used   += (uint32_t)(next - aligned);
+    g_heap.used    = (uint32_t)(g_heap.current - g_heap.base);
+    if (g_heap.used > g_heap.peak) {
+        g_heap.peak = g_heap.used;
+    }
     g_heap.alloc_count++;
 
     return (void *)aligned;
@@ -110,7 +115,7 @@ void *KMEM_Alloc(uint32_t size, uint32_t alignment)
 /*  KMEM_GetFreeSpace                                                 */
 /* ------------------------------------------------------------------ */
 
-uint32_t KMEM_GetFreeSpace(void)
+uint32_t ICACHE_FLASH_ATTR KMEM_GetFreeSpace(void)
 {
     if (!g_heap.initialized) return 0;
     return (uint32_t)(g_heap.end - g_heap.current);
@@ -120,20 +125,24 @@ uint32_t KMEM_GetFreeSpace(void)
 /*  KMEM_GetStats                                                     */
 /* ------------------------------------------------------------------ */
 
-void KMEM_GetStats(kmem_stats_t *stats)
+void ICACHE_FLASH_ATTR KMEM_GetStats(kmem_stats_t *stats)
 {
     if (!stats) return;
     stats->heap_total   = KMEM_HEAP_SIZE;
     stats->heap_used    = g_heap.used;
-    stats->heap_free    = KMEM_GetFreeSpace();
+    stats->heap_peak    = g_heap.peak;
     stats->alloc_count  = g_heap.alloc_count;
+    stats->arena_total  = 0;
+    stats->arena_used   = 0;
+    stats->pool_total   = 0;
+    stats->pool_used    = 0;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Arena API (thin wrappers — source compatibility with ARM64)       */
 /* ------------------------------------------------------------------ */
 
-kmem_arena_t *KMEM_ArenaCreate(uint32_t size)
+kmem_arena_t *ICACHE_FLASH_ATTR KMEM_ArenaCreate(uint32_t size)
 {
     /* Allocate arena header + backing storage from the bump allocator */
     kmem_arena_t *arena = (kmem_arena_t *)KMEM_Alloc(sizeof(kmem_arena_t),
@@ -152,7 +161,7 @@ kmem_arena_t *KMEM_ArenaCreate(uint32_t size)
     return arena;
 }
 
-void *KMEM_ArenaAlloc(kmem_arena_t *arena, uint32_t size, uint32_t align)
+void *ICACHE_FLASH_ATTR KMEM_ArenaAlloc(kmem_arena_t *arena, uint32_t size, uint32_t align)
 {
     if (!arena || size == 0) return (void *)0;
     if (align < KMEM_MIN_ALIGN) align = KMEM_MIN_ALIGN;
@@ -168,19 +177,19 @@ void *KMEM_ArenaAlloc(kmem_arena_t *arena, uint32_t size, uint32_t align)
     return (void *)aligned;
 }
 
-void KMEM_ArenaReset(kmem_arena_t *arena)
+void ICACHE_FLASH_ATTR KMEM_ArenaReset(kmem_arena_t *arena)
 {
     if (!arena) return;
     arena->current = arena->base;
     arena->used    = 0;
 }
 
-uint32_t KMEM_ArenaGetUsed(const kmem_arena_t *arena)
+uint32_t ICACHE_FLASH_ATTR KMEM_ArenaGetUsed(const kmem_arena_t *arena)
 {
     return arena ? arena->used : 0;
 }
 
-uint32_t KMEM_ArenaGetTotal(const kmem_arena_t *arena)
+uint32_t ICACHE_FLASH_ATTR KMEM_ArenaGetTotal(const kmem_arena_t *arena)
 {
     return arena ? arena->total : 0;
 }

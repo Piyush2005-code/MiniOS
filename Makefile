@@ -38,6 +38,7 @@ CFLAGS   = -std=c11 \
            -funroll-loops \
            -fomit-frame-pointer \
            -DNDEBUG \
+           -DARCH_ARM64 \
            -mcpu=cortex-a57 \
            -mtune=cortex-a57 \
            -I$(INC_DIR) \
@@ -119,7 +120,7 @@ QEMU_FLAGS = -machine virt \
 # Targets
 # ============================================================================
 
-.PHONY: all clean run debug disasm size generate_initfs
+.PHONY: all clean run debug disasm size generate_initfs esp8266 esp8266-flash
 
 all: $(TARGET_ELF) $(TARGET_BIN)
 	@echo ""
@@ -189,6 +190,13 @@ disasm: $(TARGET_ELF)
 # ---- Size analysis ----
 size: $(TARGET_ELF)
 	@$(SIZE) -A $<
+
+# ---- ESP8266 NonOS SDK build ----
+esp8266:
+	@$(MAKE) -C esp8266
+
+esp8266-flash:
+	@$(MAKE) -C esp8266 flash
 
 # ---- Clean ----
 clean:
