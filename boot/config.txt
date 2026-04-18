@@ -1,0 +1,46 @@
+# =============================================================================
+# config.txt — Raspberry Pi 4B firmware configuration for MiniOS
+# =============================================================================
+#
+# This file is read by the Pi's EEPROM bootloader before your kernel is loaded.
+# It MUST live on the FAT32 boot partition (Partition 1) of the SD card.
+#
+# Reference:
+#   https://www.raspberrypi.com/documentation/computers/config_txt.html
+# =============================================================================
+
+# --- Core: 64-bit AArch64 mode ---
+arm_64bit=1              # Boot into AArch64 (requires kernel8.img)
+kernel=kernel8.img       # Your flat binary kernel image
+
+# --- Serial console ---
+enable_uart=1            # Enable UART0 for serial debugging (GPIO14/15)
+init_uart_clock=48000000 # Lock UART reference clock to 48 MHz
+                         # Required for stable baud rates independent of CPU freq
+
+# --- Bluetooth: disable so UART0 is free ---
+# By default Pi 4B routes UART0 to Bluetooth.
+# This overlay disconnects BT and gives UART0 back to us.
+dtoverlay=disable-bt
+
+# --- GPU memory ---
+gpu_mem=16               # Minimum GPU VRAM (MB). No desktop OS needed.
+
+# --- Display ---
+disable_overscan=1       # Remove black borders on HDMI (cleaner display)
+
+# --- CPU/Clock stability ---
+# Lock VPU core frequency to stabilize the UART divisor.
+# Without this, UART rate can drift if the clock changes.
+core_freq=250
+core_freq_min=250
+
+# --- Optional: force HDMI hot-plug for development ---
+# Uncomment if you have a monitor connected but getting no signal:
+# hdmi_force_hotplug=1
+# hdmi_group=1
+# hdmi_mode=16           # 1080p 60Hz if group=1
+
+# --- Optional: overclock (safe range for Pi 4B with cooling) ---
+# arm_freq=1800
+# over_voltage=2

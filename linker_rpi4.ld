@@ -1,15 +1,15 @@
 /*
- * linker.ld — Linker script for MiniOS ARM64 unikernel (QEMU virt)
+ * linker_rpi4.ld — Linker script for MiniOS on Raspberry Pi 4B
  *
- * Memory layout for QEMU virt machine:
- *   RAM starts at 0x40000000 (loaded by QEMU -kernel flag)
- *   Stack near top of 512MB RAM, grows downward.
+ * Memory layout:
+ *   The BCM2711 GPU firmware (start4.elf) loads kernel8.img at 0x80000
+ *   in AArch64 mode. This is the standard load address for 64-bit Pi kernels.
  *
- * For Raspberry Pi 4B, use linker_rpi4.ld (selected by Makefile
- * when PLATFORM=rpi4 — loads kernel at 0x80000 instead).
+ *   RAM: 0x00080000 – 0x2007FFFF (512 MB starting at 0x80000)
+ *   Stack at top of RAM, grows downward.
  *
- * Sections are laid out sequentially:
- *   .text    → Code (entry at .text.boot)
+ * Sections:
+ *   .text    → Code (.text.boot entry point first)
  *   .rodata  → Read-only data
  *   .data    → Initialized data
  *   .bss     → Zero-initialized data
@@ -21,7 +21,12 @@ ENTRY(_start)
 
 MEMORY
 {
-    RAM (rwx) : ORIGIN = 0x40000000, LENGTH = 512M
+    /*
+     * Pi 4B: GPU firmware places kernel at 0x80000.
+     * We map 512 MB from that point.
+     * Physical RAM on Pi 4B (8 GB model) starts at 0x00000000.
+     */
+    RAM (rwx) : ORIGIN = 0x80000, LENGTH = 512M
 }
 
 SECTIONS
@@ -62,20 +67,23 @@ SECTIONS
     } > RAM
 
     /* ---- Stack ---- */
-    /* Stack grows downward from _stack_top.
-     * Placed near the top of RAM to maximize heap space
-     * for ML tensor memory (SRS PR-004: up to 64MB).
-     * Kernel stack gets 256KB (0x40000) of space.
+    /*
+     * Stack grows downward from _stack_top.
+     * Placed 64 KB below the top of the 512 MB window.
+     *   Top of window: 0x80000 + 512M = 0x20080000
+     *   Stack top:     0x20080000 - 0x10000 = 0x20070000
      */
-    _stack_top = ORIGIN(RAM) + LENGTH(RAM) - 0x10000;   /* 64KB from top of RAM */
+    _stack_top = ORIGIN(RAM) + LENGTH(RAM) - 0x10000;
 
     /* ---- Heap region (for kernel memory allocator) ---- */
-    /* Starts after BSS, extends to 256KB below stack for guard space.
-     * This provides ~500MB of heap for thread stacks, arenas,
-     * pools, and tensor memory.
+    /*
+     * Starts immediately after BSS (4 KB aligned).
+     * Extends to 256 KB below the stack top as a guard zone.
+     * Provides ~500 MB of heap for thread stacks, arenas,
+     * tensor buffers, and the ONNX runtime.
      */
     _heap_start = ALIGN(_bss_end, 4096);
-    _heap_end   = _stack_top - 0x40000;    /* 256KB below stack top */
+    _heap_end   = _stack_top - 0x40000;    /* 256 KB below stack */
 
     /* Discard unneeded sections */
     /DISCARD/ : {

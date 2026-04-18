@@ -2,13 +2,18 @@
  * @file gic.h
  * @brief GICv2 (Generic Interrupt Controller) driver for MiniOS
  *
- * Minimal GICv2 driver targeting QEMU virt machine.
+ * Minimal GICv2 driver targeting both QEMU virt and Raspberry Pi 4B.
  * Provides interrupt enable/disable, acknowledge, and end-of-interrupt
  * operations needed for timer-driven scheduling and I/O.
  *
- * QEMU virt GICv2 memory map:
- *   Distributor:    0x08000000
- *   CPU Interface:  0x08010000
+ * GICv2 memory map:
+ *   QEMU virt:         Distributor 0x08000000, CPU I/F 0x08010000
+ *   Raspberry Pi 4B:   GIC400 Distributor 0xFF841000, CPU I/F 0xFF842000
+ *
+ * @note On Pi 4B, the ARM Generic Timer PPI (IRQ 30) is routed via the
+ *       ARM Local Interrupt Controller (see local_irq.h / local_irq.c),
+ *       NOT via the GIC distributor. The GIC is still initialized for
+ *       any future SPI (shared peripheral) interrupts.
  *
  * @note Per SRS FR-004: Hardware interrupts with configurable priorities
  */
@@ -20,10 +25,22 @@
 #include "status.h"
 
 /* ------------------------------------------------------------------ */
-/*  GICv2 Base Addresses (QEMU virt)                                  */
+/*  GICv2 Base Addresses (platform-conditional)                       */
 /* ------------------------------------------------------------------ */
-#define GIC_DIST_BASE       0x08000000UL
-#define GIC_CPU_BASE        0x08010000UL
+#ifdef PLATFORM_RPI4
+/*
+ * BCM2711 (Pi 4B): ARM GIC400 — a GICv2-compatible controller.
+ * Physical addresses from BCM2711 ARM Peripherals datasheet, §6.3.
+ */
+#  define GIC_DIST_BASE     0xFF841000UL    /* GIC400 Distributor */
+#  define GIC_CPU_BASE      0xFF842000UL    /* GIC400 CPU Interface */
+#else
+/*
+ * QEMU virt machine GICv2.
+ */
+#  define GIC_DIST_BASE     0x08000000UL
+#  define GIC_CPU_BASE      0x08010000UL
+#endif
 
 /* ------------------------------------------------------------------ */
 /*  Distributor Register Offsets                                      */

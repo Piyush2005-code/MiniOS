@@ -1,16 +1,31 @@
 # ============================================================================
 # MiniOS — ARM64 Unikernel for ML Inference
 # Makefile
+#
+# Platform selection:
+#   make                  — build for QEMU virt (default)
+#   make PLATFORM=rpi4    — build kernel8.img for Raspberry Pi 4B
+#   make rpi4             — shorthand for PLATFORM=rpi4 build
+#   make deploy SD_MOUNT=/media/user/boot  — copy kernel8.img to SD card
 # ============================================================================
 
+# ---- Platform selection ----
+PLATFORM   ?= qemu
+SD_MOUNT   ?= /mnt/sdcard
+
 # ---- Toolchain ----
-CROSS    = aarch64-elf-
+# Use aarch64-linux-gnu- (available as apt: gcc-aarch64-linux-gnu)
+# or aarch64-elf- (bare-metal; install via crosstool-ng or ARM toolchain)
+CROSS    = aarch64-linux-gnu-
 CC       = $(CROSS)gcc
 AS       = $(CROSS)as
 LD       = $(CROSS)ld
 OBJCOPY  = $(CROSS)objcopy
 OBJDUMP  = $(CROSS)objdump
 SIZE     = $(CROSS)size
+
+# Alternative bare-metal toolchain (if installed):
+# CROSS  = aarch64-elf-
 
 # ---- Directories ----
 SRC_DIR     = src
@@ -23,6 +38,18 @@ STORAGE_DIR = $(SRC_DIR)/storage
 # ---- Output ----
 TARGET_ELF  = $(BUILD_DIR)/kernel.elf
 TARGET_BIN  = $(BUILD_DIR)/kernel.bin
+TARGET_IMG  = $(BUILD_DIR)/kernel8.img
+
+# ---- Platform-specific CPU/flags ----
+ifeq ($(PLATFORM), rpi4)
+    CPU_FLAGS    = -mcpu=cortex-a72
+    PLATFORM_DEF = -DPLATFORM_RPI4
+    LINKER_SCRIPT = linker_rpi4.ld
+else
+    CPU_FLAGS    = -mcpu=cortex-a53
+    PLATFORM_DEF =
+    LINKER_SCRIPT = linker.ld
+endif
 
 # ---- Flags ----
 CFLAGS   = -std=c11 \
@@ -33,16 +60,17 @@ CFLAGS   = -std=c11 \
            -Wextra \
            -Werror \
            -O2 \
-           -mcpu=cortex-a53 \
+           $(CPU_FLAGS) \
+           $(PLATFORM_DEF) \
            -I$(INC_DIR) \
            -I$(GEN_DIR) \
            -g
 
-ASFLAGS  = -mcpu=cortex-a53 \
+ASFLAGS  = $(CPU_FLAGS) \
            -g
 
 LDFLAGS  = -nostdlib \
-           -T linker.ld
+           -T $(LINKER_SCRIPT)
 
 # ---- Source files ----
 # Assembly sources (order matters: boot.S must be first for linker)
@@ -51,11 +79,19 @@ ASM_SRCS = $(SRC_DIR)/boot/boot.S \
            $(SRC_DIR)/kernel/context.S
 
 # C sources
+# Platform-specific HAL sources
+ifeq ($(PLATFORM), rpi4)
+    PLATFORM_HAL = $(SRC_DIR)/hal/local_irq.c
+else
+    PLATFORM_HAL =
+endif
+
 C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/hal/mmu.c \
            $(SRC_DIR)/hal/gic.c \
            $(SRC_DIR)/hal/timer.c \
            $(SRC_DIR)/hal/flash.c \
+           $(PLATFORM_HAL) \
            $(SRC_DIR)/lib/string.c \
            $(SRC_DIR)/kernel/kmem.c \
            $(SRC_DIR)/kernel/thread.c \
@@ -102,17 +138,17 @@ QEMU_FLAGS = -machine virt \
 # Targets
 # ============================================================================
 
-.PHONY: all clean run debug disasm size generate_initfs
+.PHONY: all clean run debug disasm size generate_initfs rpi4 deploy
 
 all: $(TARGET_ELF) $(TARGET_BIN)
 	@echo ""
-	@echo "=== Build complete ==="
+	@echo "=== Build complete (PLATFORM=$(PLATFORM)) ==="
 	@$(SIZE) $(TARGET_ELF)
 	@echo ""
 
 # ---- Link ----
-$(TARGET_ELF): $(ALL_OBJS) linker.ld
-	@echo "[LD] Linking $@..."
+$(TARGET_ELF): $(ALL_OBJS) $(LINKER_SCRIPT)
+	@echo "[LD] Linking $@ (linker: $(LINKER_SCRIPT))..."
 	@$(LD) $(LDFLAGS) $(ALL_OBJS) -o $@
 
 # ---- Binary ----
@@ -159,6 +195,36 @@ run: $(TARGET_ELF) flash.img
 flash.img:
 	@echo "Creating empty 64MB flash.img..."
 	@dd if=/dev/zero of=flash.img bs=1M count=64
+
+# ---- Raspberry Pi 4B targets ----
+
+# Build flat binary kernel8.img for Pi 4B
+rpi4:
+	@$(MAKE) PLATFORM=rpi4 $(TARGET_ELF)
+	@echo "[OBJCOPY] Creating $(TARGET_IMG)..."
+	@$(OBJCOPY) -O binary $(TARGET_ELF) $(TARGET_IMG)
+	@echo ""
+	@echo "=== kernel8.img ready ==="
+	@echo "    Copy to the FAT32 boot partition of your SD card:"
+	@echo "    cp $(TARGET_IMG) <SD_MOUNT>/kernel8.img"
+	@echo "    Also copy boot/config.txt and boot/cmdline.txt"
+	@echo ""
+	@$(SIZE) $(TARGET_ELF)
+
+# Deploy to mounted SD card (FAT32 partition)
+# Usage: make deploy SD_MOUNT=/media/user/bootfs
+deploy: rpi4
+	@echo "[DEPLOY] Copying kernel8.img to $(SD_MOUNT)/"
+	@cp $(TARGET_IMG) $(SD_MOUNT)/kernel8.img
+	@echo "[DEPLOY] Copying boot/config.txt to $(SD_MOUNT)/"
+	@cp boot/config.txt $(SD_MOUNT)/config.txt
+	@echo "[DEPLOY] Copying boot/cmdline.txt to $(SD_MOUNT)/"
+	@cp boot/cmdline.txt $(SD_MOUNT)/cmdline.txt
+	@sync
+	@echo ""
+	@echo "=== Deployed to $(SD_MOUNT) ==="
+	@echo "    Safely unmount the SD card before removing it."
+	@echo ""
 
 # ---- Debug with GDB ----
 debug: $(TARGET_ELF)

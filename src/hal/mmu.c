@@ -2,16 +2,22 @@
  * @file mmu.c
  * @brief MMU and cache initialization for MiniOS
  *
- * Sets up identity-mapped page tables for the QEMU virt machine:
- *   - 0x00000000–0x3FFFFFFF : Device memory (UART, GIC, etc.)
- *   - 0x40000000–0x7FFFFFFF : Normal cacheable RAM (code, data, stack)
+ * Sets up identity-mapped page tables. Two platform configurations:
  *
- * Uses 4KB granule with Level 1 block descriptors (1GB blocks)
- * for simplicity. This provides 2 entries covering 2GB which is
- * sufficient for QEMU virt with 512MB–1GB RAM.
+ * QEMU virt (2 L1 entries, 2 GB):
+ *   0x00000000–0x3FFFFFFF — Device memory (UART at 0x09000000, GIC etc.)
+ *   0x40000000–0x7FFFFFFF — Normal cacheable RAM (kernel at 0x40000000)
+ *
+ * Raspberry Pi 4B (4 L1 entries, 4 GB):
+ *   0x00000000–0x3FFFFFFF — Device/VC memory (VideoCore, lower MMIO)
+ *   0x40000000–0x7FFFFFFF — Normal RAM (kernel at 0x80000)
+ *   0x80000000–0xBFFFFFFF — Normal RAM (upper 1 GB window)
+ *   0xC0000000–0xFFFFFFFF — Device memory (BCM2711 peripherals 0xFE000000+)
+ *
+ * Uses 4KB granule with Level 1 block descriptors (1 GB blocks)
+ * for simplicity. IPS is set to 36-bit PA for Pi 4B.
  *
  * @note Per SRS FR-002, FR-003
- *
  * @complexity Time: O(1), Space: O(4KB page table)
  */
 
@@ -78,39 +84,67 @@ static void mmu_build_page_tables(void)
     }
 
     /*
-     * Entry 0: 0x00000000 – 0x3FFFFFFF (1GB)
-     * Device-nGnRnE memory for MMIO
-     * - Block descriptor (bit 0 = 1, bit 1 = 0)
-     * - MAIR index 0 (Device-nGnRnE)
-     * - Access flag set
-     * - Inner shareable
-     * - EL1 read/write
-     * - Execute Never (PXN + UXN)
+     * Entry 0: 0x00000000 – 0x3FFFFFFF (1 GB)
+     * Device-nGnRnE memory.
+     * QEMU: covers UART (0x09000000) and GIC (0x08000000).
+     * Pi 4B: covers VideoCore / VC4 memory and lower MMIO.
      */
-    l1_page_table[0] = (0x00000000UL)           /* Physical base address */
-                      | PTE_TYPE_BLOCK           /* Block descriptor */
-                      | PTE_ATTR_DEVICE          /* MAIR index 0 */
-                      | PTE_AF                   /* Access flag */
-                      | PTE_SH_OUTER             /* Outer shareable for device */
-                      | PTE_AP_RW_EL1            /* EL1 read/write */
-                      | PTE_UXN                  /* No execute (unprivileged) */
-                      | PTE_PXN;                 /* No execute (privileged) */
+    l1_page_table[0] = (0x00000000UL)
+                      | PTE_TYPE_BLOCK
+                      | PTE_ATTR_DEVICE
+                      | PTE_AF
+                      | PTE_SH_OUTER
+                      | PTE_AP_RW_EL1
+                      | PTE_UXN
+                      | PTE_PXN;
 
     /*
-     * Entry 1: 0x40000000 – 0x7FFFFFFF (1GB)
-     * Normal Write-Back cacheable memory for RAM
-     * - Block descriptor
-     * - MAIR index 1 (Normal WB)
-     * - Access flag set
-     * - Inner shareable
-     * - EL1 read/write
+     * Entry 1: 0x40000000 – 0x7FFFFFFF (1 GB)
+     * Normal Write-Back cacheable RAM.
+     * QEMU: kernel at 0x40000000.
+     * Pi 4B: kernel at 0x80000 (within this range).
      */
-    l1_page_table[1] = (0x40000000UL)           /* Physical base address */
-                      | PTE_TYPE_BLOCK           /* Block descriptor */
-                      | PTE_ATTR_NORMAL          /* MAIR index 1 */
-                      | PTE_AF                   /* Access flag */
-                      | PTE_SH_INNER             /* Inner shareable for RAM */
-                      | PTE_AP_RW_EL1;           /* EL1 read/write */
+    l1_page_table[1] = (0x40000000UL)
+                      | PTE_TYPE_BLOCK
+                      | PTE_ATTR_NORMAL
+                      | PTE_AF
+                      | PTE_SH_INNER
+                      | PTE_AP_RW_EL1;
+
+#ifdef PLATFORM_RPI4
+    /*
+     * Entry 2: 0x80000000 – 0xBFFFFFFF (1 GB)
+     * Pi 4B: Normal Write-Back cacheable RAM (upper RAM window).
+     * Required on Pi 4B models with > 1 GB RAM to access the
+     * upper portion of LPDDR4 through the identity map.
+     */
+    l1_page_table[2] = (0x80000000UL)
+                      | PTE_TYPE_BLOCK
+                      | PTE_ATTR_NORMAL
+                      | PTE_AF
+                      | PTE_SH_INNER
+                      | PTE_AP_RW_EL1;
+
+    /*
+     * Entry 3: 0xC0000000 – 0xFFFFFFFF (1 GB)
+     * Pi 4B: Device-nGnRnE for BCM2711 peripheral window.
+     * Key addresses in this range:
+     *   0xFC000000 – 0xFEFFFFFF — BCM2711 peripherals
+     *   0xFE000000              — Peripheral base
+     *   0xFE201000              — UART0 (PL011)
+     *   0xFF800000              — ARM Local Interrupt Controller
+     *   0xFF841000              — GIC400 Distributor
+     *   0xFF842000              — GIC400 CPU Interface
+     */
+    l1_page_table[3] = (0xC0000000UL)
+                      | PTE_TYPE_BLOCK
+                      | PTE_ATTR_DEVICE
+                      | PTE_AF
+                      | PTE_SH_OUTER
+                      | PTE_AP_RW_EL1
+                      | PTE_UXN
+                      | PTE_PXN;
+#endif /* PLATFORM_RPI4 */
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,13 +175,23 @@ Status HAL_MMU_Init(void)
      * ORGN0 = 01  → Outer Write-Back, Write-Allocate (bits [11:10])
      * SH0   = 11  → Inner Shareable (bits [13:12])
      * TG0   = 00  → 4KB granule (bits [15:14])
-     * IPS   = 000 → 32-bit PA (4GB) (bits [34:32])
+     *
+     * IPS (bits [34:32]):
+     *   QEMU virt: IPS=000 (32-bit PA, 4 GB) — adequate for virt machine
+     *   Pi 4B:     IPS=001 (36-bit PA, 64 GB) — covers 0x00000000–0xFFFFFFFF
+     *              (our 4-entry L1 table maps the full 4 GB space)
      */
-    uint64_t tcr = (32UL << 0)      /* T0SZ = 32 */
-                 | (1UL  << 8)      /* IRGN0 = Write-Back */
-                 | (1UL  << 10)     /* ORGN0 = Write-Back */
-                 | (3UL  << 12)     /* SH0 = Inner Shareable */
-                 | (0UL  << 14);    /* TG0 = 4KB granule */
+    uint64_t tcr = (32UL << 0)   /* T0SZ = 32 */
+                 | (1UL  << 8)   /* IRGN0 = Write-Back */
+                 | (1UL  << 10)  /* ORGN0 = Write-Back */
+                 | (3UL  << 12)  /* SH0 = Inner Shareable */
+                 | (0UL  << 14); /* TG0 = 4KB granule */
+
+#ifdef PLATFORM_RPI4
+    tcr |= (1UL << 32);          /* IPS = 001 = 36-bit PA (64 GB) */
+#else
+    tcr |= (0UL << 32);          /* IPS = 000 = 32-bit PA (4 GB) */
+#endif
 
     write_tcr_el1(tcr);
 

@@ -2,12 +2,18 @@
  * @file uart.c
  * @brief PL011 UART driver implementation for MiniOS
  *
- * Targets the PL011 UART on QEMU virt machine.
- * Base address: 0x09000000
+ * Supports two platforms selected via the PLATFORM_RPI4 preprocessor flag:
  *
- * On QEMU, the UART is pre-initialized so we can send
- * characters immediately. We still configure it properly
- * for completeness and physical hardware compatibility.
+ * QEMU virt (default):
+ *   Base: 0x09000000, reference clock: 24 MHz
+ *   Baud 115200: IBRD=13, FBRD=2
+ *   UART is pre-initialized by QEMU; we still configure it fully.
+ *
+ * Raspberry Pi 4B (PLATFORM_RPI4):
+ *   Base: 0xFE201000 (UART0 = PL011 freed from Bluetooth via config.txt)
+ *   Reference clock: 48 MHz (locked by init_uart_clock=48000000 in config.txt)
+ *   Baud 115200: IBRD=26, FBRD=3
+ *   GPIO14=TXD0, GPIO15=RXD0 (connect USB-TTL adapter here)
  *
  * @complexity Time: O(1) per character, Space: O(1)
  */
@@ -40,14 +46,26 @@ Status HAL_UART_Init(void)
     /* Clear all pending interrupts */
     uart_write_reg(UART_ICR, 0x7FF);
 
+#ifdef PLATFORM_RPI4
     /*
-     * Set baud rate to 115200 with 24MHz reference clock (QEMU default).
+     * Set baud rate to 115200 with 48 MHz reference clock.
+     * config.txt sets: init_uart_clock=48000000
+     * Divisor = 48000000 / (16 * 115200) = 26.0416
+     * Integer part  = 26
+     * Fractional    = 0.0416 * 64 + 0.5 = 3.17 ≈ 3
+     */
+    uart_write_reg(UART_IBRD, 26);
+    uart_write_reg(UART_FBRD, 3);
+#else
+    /*
+     * Set baud rate to 115200 with 24 MHz reference clock (QEMU default).
      * Divisor = 24000000 / (16 * 115200) = 13.0208
-     * Integer part = 13
-     * Fractional part = 0.0208 * 64 + 0.5 = 1.83 ≈ 2
+     * Integer part  = 13
+     * Fractional    = 0.0208 * 64 + 0.5 = 1.83 ≈ 2
      */
     uart_write_reg(UART_IBRD, 13);
     uart_write_reg(UART_FBRD, 2);
+#endif
 
     /* 8 data bits, no parity, 1 stop bit, enable FIFOs */
     uart_write_reg(UART_LCR_H, UART_LCR_WLEN8 | UART_LCR_FEN);

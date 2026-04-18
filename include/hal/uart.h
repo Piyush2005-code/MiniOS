@@ -3,7 +3,12 @@
  * @brief PL011 UART driver interface for MiniOS
  *
  * Provides serial I/O for debugging and communication.
- * Targets the PL011 UART on QEMU virt machine (base: 0x09000000).
+ *
+ * Targets:
+ *   QEMU virt machine:     PL011 at 0x09000000, 24 MHz ref clock
+ *   Raspberry Pi 4B:       PL011 (UART0) at 0xFE201000, 48 MHz ref clock
+ *                          (locked via config.txt: init_uart_clock=48000000)
+ *                          UART0 is freed from Bluetooth via dtoverlay=disable-bt
  *
  * @note Per SRS FR-021/FR-022 and Appendix F
  */
@@ -15,9 +20,22 @@
 #include "status.h"
 
 /* ------------------------------------------------------------------ */
-/*  PL011 UART register offsets                                       */
+/*  PL011 UART base addresses (platform-conditional)                  */
 /* ------------------------------------------------------------------ */
-#define UART0_BASE      0x09000000UL
+#ifdef PLATFORM_RPI4
+/*
+ * BCM2711 (Pi 4B): UART0 (PL011) at peripheral base 0xFE000000.
+ * UART0 is the full PL011 implementation. By default on Pi 4B it is
+ * assigned to Bluetooth; config.txt dtoverlay=disable-bt reassigns
+ * it to GPIO 14/15 (TXD/RXD) for serial debugging.
+ */
+#  define UART0_BASE    0xFE201000UL
+#else
+/*
+ * QEMU virt: PL011 at 0x09000000 (pre-initialized by QEMU).
+ */
+#  define UART0_BASE    0x09000000UL
+#endif
 
 #define UART_DR         0x000   /* Data Register */
 #define UART_FR         0x018   /* Flag Register */

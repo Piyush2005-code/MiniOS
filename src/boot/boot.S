@@ -1,29 +1,42 @@
 /*
  * boot.S — ARM64 boot entry point for MiniOS
  *
- * This is the very first code executed after QEMU loads kernel.elf.
- * QEMU virt loads the kernel at 0x40000000 and jumps here.
+ * This is the very first code executed by the bootloader.
+ *
+ * Platform-specific load addresses:
+ *   QEMU virt:        kernel loaded at 0x40000000 via -kernel flag
+ *   Raspberry Pi 4B:  GPU firmware loads kernel8.img at 0x80000
+ *                     (standard AArch64 kernel address per BCM2711 spec)
  *
  * Boot sequence:
  *   1. Park secondary CPU cores (only core 0 proceeds)
- *   2. Detect current Exception Level
- *   3. If at EL2, drop to EL1
- *   4. Set up the stack pointer
- *   5. Zero the .bss section
- *   6. Branch to kernel_main() in C
+ *   2. Save DTB pointer from x0 (passed by both QEMU and Pi firmware)
+ *   3. Detect current Exception Level
+ *   4. Drop to EL1 (Pi 4B starts at EL2; QEMU virt may start at EL2 or EL3)
+ *   5. Set up the stack pointer
+ *   6. Zero the .bss section
+ *   7. Branch to kernel_main() in C
  *
- * Register conventions on entry (QEMU virt):
- *   x0 = DTB address (ignored for now)
- *   x1-x3 = 0
+ * Register conventions on entry (both QEMU virt and Pi 4B):
+ *   x0 = DTB address (device tree blob pointer from firmware)
+ *   x1-x3 = 0 (reserved / undefined)
  */
 
 .section .text.boot
 .global _start
+.global _dtb_ptr   /* Exported so C code can read the DTB pointer */
 
 _start:
     /* ------------------------------------------------------------ */
     /* 1. Park secondary cores: only core 0 proceeds                */
     /* ------------------------------------------------------------ */
+    /*
+     * Save x0 (DTB pointer from firmware) to x28 before touching it.
+     * Both QEMU and Pi 4B firmware place the DTB address in x0.
+     * We preserve it across the EL transition for future use.
+     */
+    mov     x28, x0                 /* Preserve DTB pointer */
+
     mrs     x0, mpidr_el1           /* Read Multiprocessor Affinity Register */
     and     x0, x0, #0xFF           /* Extract Aff0 (core ID) */
     cbz     x0, .Lprimary_core      /* If core 0, continue */
@@ -34,7 +47,10 @@ _start:
 
 .Lprimary_core:
     /* ------------------------------------------------------------ */
-    /* 2. Detect current Exception Level                            */
+    /* 3. Detect current Exception Level                            */
+    /*                                                              */
+    /* Pi 4B:   firmware always drops us at EL2.                   */
+    /* QEMU virt: may enter at EL3 (rare) or EL2 (common).         */
     /* ------------------------------------------------------------ */
     mrs     x0, CurrentEL           /* Read current EL */
     lsr     x0, x0, #2             /* Shift to get EL number */
@@ -42,7 +58,7 @@ _start:
     b.eq    .Lfrom_el3
     cmp     x0, #2
     b.eq    .Lfrom_el2
-    b       .Lat_el1                /* Already at EL1 */
+    b       .Lat_el1                /* Already at EL1 (unusual) */
 
     /* ------------------------------------------------------------ */
     /* 3a. Drop from EL3 to EL1 (unlikely on QEMU virt)            */
@@ -124,11 +140,21 @@ _start:
 
 .Lbss_done:
     /* ------------------------------------------------------------ */
-    /* 6. Branch to C code                                          */
+    /* 7. Store DTB pointer and branch to C code                    */
     /* ------------------------------------------------------------ */
+    /* Save the preserved DTB pointer to the global variable */
+    ldr     x0, =_dtb_ptr
+    str     x28, [x0]
+
+    /* Call kernel_main with no arguments */
     bl      kernel_main
 
     /* If kernel_main returns, halt */
 .Lhalt:
     wfe
     b       .Lhalt
+
+/* Global storage for the DTB pointer (written in boot, read by C) */
+.section .data
+_dtb_ptr:
+    .quad   0
