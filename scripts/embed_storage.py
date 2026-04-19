@@ -23,8 +23,8 @@ import sys
 import re
 
 # Files larger than this threshold are NOT embedded in the kernel image.
-# Keep this <= 4 MB so the kernel stays loadable by QEMU.
-MAX_EMBED_BYTES = 4 * 1024 * 1024   # 4 MB
+# Keep this <= 150 MB so the kernel stays loadable by QEMU.
+MAX_EMBED_BYTES = 150 * 1024 * 1024   # 150 MB
 
 
 def sanitize_name(path):
@@ -102,16 +102,17 @@ def main():
         # Emit byte arrays for each file
         for rel_path, full_path in entries:
             var_name = "initfs_blob_" + sanitize_name(rel_path)
-            with open(full_path, 'rb') as f:
-                data = f.read()
-
-            cf.write(f"/* {rel_path} ({len(data)} bytes) */\n")
-            cf.write(f"static const unsigned char {var_name}[] = {{\n")
-            for i in range(0, len(data), 16):
-                chunk = data[i:i+16]
-                hex_vals = ', '.join(f'0x{b:02x}' for b in chunk)
-                cf.write(f"    {hex_vals},\n")
-            cf.write("};\n\n")
+            # Emit assembly directive to include the binary directly
+            c_path_escaped = full_path.replace('"', '\\"')
+            cf.write(f"/* {rel_path} ({os.path.getsize(full_path)} bytes) */\n")
+            cf.write(f"__asm__(\"\\n\"\n")
+            cf.write(f"\".section .rodata\\n\"\n")
+            cf.write(f"\".align 4\\n\"\n")
+            cf.write(f"\".global {var_name}\\n\"\n")
+            cf.write(f"\"{var_name}:\\n\"\n")
+            cf.write(f"\".incbin \\\"{c_path_escaped}\\\"\\n\"\n")
+            cf.write(f");\n")
+            cf.write(f"extern const unsigned char {var_name}[];\n\n")
 
         # Emit entry table
         cf.write("const initfs_entry_t initfs_entries[] = {\n")

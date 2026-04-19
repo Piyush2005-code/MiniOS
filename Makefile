@@ -60,10 +60,15 @@ CFLAGS   = -std=c11 \
            -Wextra \
            -Werror \
            -O2 \
+           -ffast-math \
+           -fno-math-errno \
+           -funroll-loops \
            $(CPU_FLAGS) \
            $(PLATFORM_DEF) \
            -I$(INC_DIR) \
            -I$(GEN_DIR) \
+           -DONNX_USE_OPENMP=OFF \
+           -DONNX_USE_BLAS=OFF \
            -g
 
 ASFLAGS  = $(CPU_FLAGS) \
@@ -103,6 +108,14 @@ C_SRCS   = $(SRC_DIR)/hal/uart.c \
            $(SRC_DIR)/kernel/storage.c \
            $(SRC_DIR)/kernel/initfs.c \
            $(SRC_DIR)/kernel/main.c \
+           $(SRC_DIR)/drivers/virtio_net.c \
+           $(SRC_DIR)/net/ethernet.c \
+           $(SRC_DIR)/net/arp.c \
+           $(SRC_DIR)/net/ipv4.c \
+           $(SRC_DIR)/net/udp.c \
+           $(SRC_DIR)/net/sfu.c \
+           $(SRC_DIR)/net/net_cmds.c \
+           $(SRC_DIR)/net/infer_server.c \
            $(SRC_DIR)/onnx/onnx_types.c \
            $(SRC_DIR)/onnx/onnx_graph.c \
            $(SRC_DIR)/onnx/onnx_runtime.c \
@@ -128,11 +141,14 @@ ALL_OBJS = $(ASM_OBJS) $(C_OBJS) $(GEN_OBJS)
 # ---- QEMU ----
 QEMU     = qemu-system-aarch64
 QEMU_FLAGS = -machine virt \
-             -cpu cortex-a53 \
-             -m 512M \
+             -cpu cortex-a57 \
+             -m 2048M \
+             -smp 1 \
              -nographic \
              -kernel $(TARGET_ELF) \
-             -drive if=pflash,file=flash.img,format=raw,index=1
+             -drive if=pflash,file=flash.img,format=raw,index=1 \
+             -netdev user,id=net0,hostfwd=udp::9000-:9000 \
+             -device virtio-net-device,netdev=net0
 
 # ============================================================================
 # Targets

@@ -63,4 +63,17 @@ Status DAEMON_RegisterAll(void);
  */
 uint64_t DAEMON_GetWallSeconds(void);
 
+/**
+ * @brief Enable/disable periodic daemon telemetry printing.
+ *
+ * This does not stop daemon scheduling or internal accounting; it only
+ * suppresses recurring UART output from clock/memwatch/rtmon daemons.
+ */
+void DAEMON_SetTelemetryEnabled(bool enable);
+
+/**
+ * @brief Query daemon telemetry printing state.
+ */
+bool DAEMON_GetTelemetryEnabled(void);
+
 #endif /* MINIOS_KERNEL_DAEMON_H */

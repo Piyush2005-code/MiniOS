@@ -17,8 +17,13 @@
 #include "status.h"
 
 #define FLASH_BASE_ADDR   0x04000000UL
-#define FLASH_SECTOR_SIZE 0x40000      // 256 KB
-#define FLASH_TOTAL_SIZE  0x4000000    // 64 MB
+#define FLASH_SECTOR_SIZE 0x00040000UL   // 256KB — Intel CFI standard
+#define FLASH_TOTAL_SIZE  0x04000000UL   // 64MB = size of flash.img
+
+/* Storage layout — byte offsets within flash */
+#define STORAGE_HEADER_OFFSET 0x00000000UL  /* Sector 0: 256KB for NVRAM boot header (magic) */
+#define STORAGE_FS_OFFSET     0x00040000UL  /* Sector 1+: ulfs filesystem starts here         */
+#define STORAGE_FS_SIZE       (FLASH_TOTAL_SIZE - STORAGE_FS_OFFSET)
 
 /**
  * @brief Initialize the flash subsystem.

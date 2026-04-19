@@ -37,10 +37,21 @@
  * but volatile prevents compiler caching.
  */
 static volatile uint64_t g_wall_seconds = 0;
+static volatile bool g_daemon_telemetry_enabled = true;
 
 uint64_t DAEMON_GetWallSeconds(void)
 {
     return g_wall_seconds;
+}
+
+void DAEMON_SetTelemetryEnabled(bool enable)
+{
+    g_daemon_telemetry_enabled = enable;
+}
+
+bool DAEMON_GetTelemetryEnabled(void)
+{
+    return g_daemon_telemetry_enabled;
 }
 
 /* ------------------------------------------------------------------ */
@@ -80,7 +91,9 @@ static void uart_print_time(uint64_t total_sec)
 static void clock_daemon(void *arg)
 {
     (void)arg;
-    HAL_UART_PutString("[CLOCK] Wall-clock daemon started (1 s period)\n");
+    if (g_daemon_telemetry_enabled) {
+        HAL_UART_PutString("[CLOCK] Wall-clock daemon started (1 s period)\n");
+    }
 
     while (1) {
         /* Sleep first so first tick prints at t=1s, not t=0 */
@@ -88,9 +101,11 @@ static void clock_daemon(void *arg)
 
         g_wall_seconds++;
 
-        HAL_UART_PutString("[CLOCK] ");
-        uart_print_time(g_wall_seconds);
-        HAL_UART_PutString("\n");
+        if (g_daemon_telemetry_enabled) {
+            HAL_UART_PutString("[CLOCK] ");
+            uart_print_time(g_wall_seconds);
+            HAL_UART_PutString("\n");
+        }
     }
     /* Never reached — cooperative thread runs forever */
 }
@@ -113,7 +128,9 @@ static void clock_daemon(void *arg)
 static void memwatch_daemon(void *arg)
 {
     (void)arg;
-    HAL_UART_PutString("[MEMW ] Memory watchdog started (500 ms period)\n");
+    if (g_daemon_telemetry_enabled) {
+        HAL_UART_PutString("[MEMW ] Memory watchdog started (500 ms period)\n");
+    }
 
     while (1) {
         THREAD_Sleep(DAEMON_MEMWATCH_PERIOD_MS);
@@ -127,20 +144,22 @@ static void memwatch_daemon(void *arg)
             pct = (uint32_t)((st.heap_used * 100ULL) / st.heap_total);
         }
 
-        HAL_UART_PutString("[MEMW ] heap ");
-        HAL_UART_PutDec((uint32_t)(st.heap_used / 1024U));
-        HAL_UART_PutString("KB/");
-        HAL_UART_PutDec((uint32_t)(st.heap_total / 1024U));
-        HAL_UART_PutString("KB (");
-        HAL_UART_PutDec(pct);
-        HAL_UART_PutString("%)\n");
-
-        if (pct >= DAEMON_MEM_WARN_PERCENT) {
-            HAL_UART_PutString("[MEMW ] *** WARN: heap ");
+        if (g_daemon_telemetry_enabled) {
+            HAL_UART_PutString("[MEMW ] heap ");
+            HAL_UART_PutDec((uint32_t)(st.heap_used / 1024U));
+            HAL_UART_PutString("KB/");
+            HAL_UART_PutDec((uint32_t)(st.heap_total / 1024U));
+            HAL_UART_PutString("KB (");
             HAL_UART_PutDec(pct);
-            HAL_UART_PutString("% -- above ");
-            HAL_UART_PutDec(DAEMON_MEM_WARN_PERCENT);
-            HAL_UART_PutString("% watermark ***\n");
+            HAL_UART_PutString("%)\n");
+
+            if (pct >= DAEMON_MEM_WARN_PERCENT) {
+                HAL_UART_PutString("[MEMW ] *** WARN: heap ");
+                HAL_UART_PutDec(pct);
+                HAL_UART_PutString("% -- above ");
+                HAL_UART_PutDec(DAEMON_MEM_WARN_PERCENT);
+                HAL_UART_PutString("% watermark ***\n");
+            }
         }
     }
 }
@@ -166,7 +185,9 @@ static void memwatch_daemon(void *arg)
 static void runtime_daemon(void *arg)
 {
     (void)arg;
-    HAL_UART_PutString("[RTMON] Runtime monitor started (2 s period)\n");
+    if (g_daemon_telemetry_enabled) {
+        HAL_UART_PutString("[RTMON] Runtime monitor started (2 s period)\n");
+    }
 
     while (1) {
         THREAD_Sleep(DAEMON_RUNTIME_PERIOD_MS);
@@ -174,13 +195,15 @@ static void runtime_daemon(void *arg)
         uint64_t uptime_ms   = SCHED_GetUptime();
         uint32_t num_threads = SCHED_GetThreadCount();
 
-        HAL_UART_PutString("[RTMON] uptime=");
-        HAL_UART_PutDec((uint32_t)uptime_ms);
-        HAL_UART_PutString("ms  threads=");
-        HAL_UART_PutDec(num_threads);
-        HAL_UART_PutString("  wall=");
-        uart_print_time(g_wall_seconds);
-        HAL_UART_PutString("\n");
+        if (g_daemon_telemetry_enabled) {
+            HAL_UART_PutString("[RTMON] uptime=");
+            HAL_UART_PutDec((uint32_t)uptime_ms);
+            HAL_UART_PutString("ms  threads=");
+            HAL_UART_PutDec(num_threads);
+            HAL_UART_PutString("  wall=");
+            uart_print_time(g_wall_seconds);
+            HAL_UART_PutString("\n");
+        }
     }
 }
 
