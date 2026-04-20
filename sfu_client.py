@@ -486,3 +486,32 @@ class SFUClient:
 
     def __exit__(self, *_):
         self.close()
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="MiniOS SFU Client Test Tool")
+    parser.add_argument("--host", default="127.0.0.1", help="MiniOS IP address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=9000, help="MiniOS UDP port (default: 9000)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug packet logging")
+    parser.add_argument("cmd", nargs="?", default="demo", choices=["demo", "ping", "list_models", "infer"], help="Command to run")
+    args = parser.parse_args()
+
+    print(f"Connecting to MiniOS at {args.host}:{args.port}...")
+    try:
+        with SFUClient(host=args.host, port=args.port, debug=args.debug) as client:
+            if args.cmd in ("ping", "demo"):
+                rtt = client.ping()
+                print(f"[PING] Success! RTT = {rtt:.2f} ms")
+            
+            if args.cmd in ("list_models", "demo"):
+                models = client.cmd("LIST_MODELS")
+                print(f"\\n[CMD]  Available Models:\\n{models}")
+            
+            if args.cmd in ("infer", "demo"):
+                inputs = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+                print(f"\\n[INFER] Sending input: {inputs}")
+                output = client.infer(inputs)
+                print(f"[INFER] Output received: {output}")
+
+    except Exception as e:
+        print(f"\\nError: {e}")

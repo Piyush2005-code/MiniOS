@@ -42,7 +42,7 @@
 #include "net/net_cmds.h"
 
 #ifndef MINIOS_BENCH_FAST_BOOT
-#define MINIOS_BENCH_FAST_BOOT 1
+#define MINIOS_BENCH_FAST_BOOT 0
 #endif
 
 /* ------------------------------------------------------------------ */
