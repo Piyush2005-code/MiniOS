@@ -232,52 +232,50 @@ static float fast_floor(float x)
 
 static float fast_sin(float x)
 {
-    // Wrap to [-pi, pi]
-    float pi = 3.1415926535f;
-    while (x > pi) x -= 2.0f * pi;
-    while (x < -pi) x += 2.0f * pi;
+    /* Fold x to [-pi, pi] */
+    const float twopi = 6.283185307179586f;
+    const float invtwopi = 0.159154943091895f;
+    float k = x * invtwopi;
+    int n = (int)(k > 0.0f ? k + 0.5f : k - 0.5f);
+    x = x - n * twopi;
 
-    // Taylor series: x - x^3/3! + x^5/5! - x^7/7!
+    /* Minimax polynomial for sin(x) */
     float x2 = x * x;
-    return x * (1.0f - x2/6.0f + (x2*x2)/120.0f - (x2*x2*x2)/5040.0f);
+    return x * (1.0f + x2 * (-0.166666666f + x2 * (0.008333333f - x2 * 0.000198412f)));
 }
 
 static float fast_cos(float x)
 {
-    // Wrap to [-pi, pi]
-    float pi = 3.1415926535f;
-    while (x > pi) x -= 2.0f * pi;
-    while (x < -pi) x += 2.0f * pi;
-
-    // Taylor series: 1 - x^2/2! + x^4/4! - x^6/6!
-    float x2 = x * x;
-    return 1.0f - x2/2.0f + (x2*x2)/24.0f - (x2*x2*x2)/720.0f;
+    const float pi_half = 1.5707963267948966f;
+    return fast_sin(x + pi_half); /* cos(x) = sin(x + pi/2) */
 }
 
 static float fast_exp(float x)
 {
-    /* Very basic Taylor series approximation for exp(x)
-     * e^x = 1 + x + x^2/2! + x^3/3! + x^4/4! + ...
-     */
-    if (x < -10.0f) return 0.0f;
-    if (x > 10.0f) return 22026.46579f; /* approx exp(10) */
+    if (x < -88.0f) return 0.0f;
+    if (x > 88.0f) return 3.402823466e+38f;
+    
+    /* Range reduction: x = n * ln(2) + r */
+    float k = x * 1.4426950408889634f; /* x / ln(2) */
+    int n = (int)(k > 0.0f ? k + 0.5f : k - 0.5f);
+    float r = x - n * 0.6931471805599453f;
 
-    float sum = 1.0f;
-    float term = 1.0f;
-    for (int i = 1; i < 10; i++) {
-        term = term * x / i;
-        sum += term;
-    }
-    return sum;
+    /* Horner polynomial degree 3 for e^r */
+    float p = 1.0f + r * (1.0f + r * (0.5f + r * 0.1666666667f));
+
+    /* Scale by 2^n via IEEE 754 exponent field manipulation */
+    union { float f; uint32_t i; } u;
+    u.i = (uint32_t)(n + 127) << 23;
+    return p * u.f;
 }
 
 static float fast_tanh(float x)
 {
     /* tanh(x) = (e^x - e^-x) / (e^x + e^-x) */
-    if (x > 5.0f) return 1.0f;
+    if (x >  5.0f) return  1.0f;
     if (x < -5.0f) return -1.0f;
 
-    float e_x = fast_exp(x);
+    float e_x  = fast_exp(x);
     float e_nx = fast_exp(-x);
     return (e_x - e_nx) / (e_x + e_nx);
 }
