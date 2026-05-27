@@ -4,7 +4,7 @@
 # ============================================================================
 
 # ---- Toolchain ----
-CROSS    = aarch64-linux-gnu-
+CROSS    = aarch64-elf-
 CC       = $(CROSS)gcc
 AS       = $(CROSS)as
 LD       = $(CROSS)ld
