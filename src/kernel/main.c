@@ -333,7 +333,7 @@ void kernel_main(void)
     HAL_UART_PutString("[BOOT] Network stack ready\n");
 
     /* Wake up QEMU SLIRP by sending a dummy frame (triggers ARP request) */
-    uint8_t dummy[4] = "wake";
+    uint8_t dummy[5] = "wake";
     UDP_Send(0x0202000aUL, 9000u, 9000u, dummy, 4u);
     extern void VNIC_Poll(void);
     VNIC_Poll(); /* flush TX */
