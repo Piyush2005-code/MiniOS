@@ -21,8 +21,8 @@ if [ ! -f "$PROJECT_DIR/flash.img" ]; then
     dd if=/dev/zero of="$PROJECT_DIR/flash.img" bs=1M count=64
 fi
 
-QEMU_BASE="-machine virt -cpu cortex-a53 -m 512M -nographic -kernel $KERNEL -drive if=pflash,file=$PROJECT_DIR/flash.img,format=raw,index=1 -netdev user,id=net0,hostfwd=udp::9000-:9000 -device virtio-net-device,netdev=net0"
-QEMU_DOCKER_FLAGS="-machine virt -cpu cortex-a53 -m 512M -nographic -kernel /workspace/build/kernel.elf -drive if=pflash,file=/workspace/flash.img,format=raw,index=1 -netdev user,id=net0,hostfwd=udp::9000-:9000 -device virtio-net-device,netdev=net0"
+QEMU_BASE="-machine virt -cpu cortex-a53 -m 2048M -nographic -kernel $KERNEL -drive if=pflash,file=$PROJECT_DIR/flash.img,format=raw,index=1 -netdev user,id=net0,hostfwd=udp::9000-:9000 -device virtio-net-device,netdev=net0"
+QEMU_DOCKER_FLAGS="-machine virt -cpu cortex-a53 -m 2048M -nographic -kernel /workspace/build/kernel.elf -drive if=pflash,file=/workspace/flash.img,format=raw,index=1 -netdev user,id=net0,hostfwd=udp::9000-:9000 -device virtio-net-device,netdev=net0"
 
 # Check if qemu-system-aarch64 is available natively
 if command -v qemu-system-aarch64 &> /dev/null; then

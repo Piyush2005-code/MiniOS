@@ -101,7 +101,7 @@ ALL_OBJS = $(ASM_OBJS) $(C_OBJS) $(GEN_OBJS)
 QEMU     = qemu-system-aarch64
 QEMU_FLAGS = -machine virt \
              -cpu cortex-a53 \
-             -m 512M \
+             -m 2048M \
              -nographic \
              -kernel $(TARGET_ELF) \
              -drive if=pflash,file=flash.img,format=raw,index=1 \

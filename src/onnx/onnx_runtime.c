@@ -347,20 +347,23 @@ Status ONNX_Execute_ReLU(ONNX_Node* node, ONNX_InferenceContext* ctx)
     
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
-    
+
+    /* Propagate shape (may differ from bench_propagate's pre-computed shape) */
+    out->shape = in->shape;
+
     /* Only support float32 for now */
     if (in->dtype != ONNX_DTYPE_FLOAT32) {
         return STATUS_ERROR_NOT_SUPPORTED;
     }
-    
+
     uint64_t n = in->shape.total_elements;
     float* in_data = (float*)in->data;
     float* out_data = (float*)out->data;
-    
+
     for (uint64_t i = 0; i < n; i++) {
         out_data[i] = (in_data[i] > 0.0f) ? in_data[i] : 0.0f;
     }
-    
+
     return STATUS_OK;
 }
 
@@ -374,6 +377,8 @@ Status ONNX_Execute_Sigmoid(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;  /* propagate shape */
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) {
         return STATUS_ERROR_NOT_SUPPORTED;
@@ -623,6 +628,8 @@ Status ONNX_Execute_BatchNorm(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* var = node->inputs[4];
     ONNX_Tensor* y = node->outputs[0];
 
+    y->shape = x->shape;  /* BatchNorm is shape-preserving */
+
     float* x_data = (float*)x->data;
     float* scale_data = (float*)scale->data;
     float* b_data = (float*)b->data;
@@ -709,7 +716,11 @@ Status ONNX_Execute_GEMM(ONNX_Node* node, ONNX_InferenceContext* ctx)
         N_out = (uint32_t)B->shape.dims[0];
         /* Verify inner dim matches */
         if ((uint32_t)B->shape.dims[1] != K) {
-            HAL_UART_PutString("[ONNX] GEMM: shape mismatch\n");
+            HAL_UART_PutString("[ONNX] GEMM mismatch: A_K=");
+            HAL_UART_PutDec(K);
+            HAL_UART_PutString(" B1=");
+            HAL_UART_PutDec((uint32_t)B->shape.dims[1]);
+            HAL_UART_PutString("\n");
             return STATUS_ERROR_SHAPE_MISMATCH;
         }
     }
@@ -906,6 +917,8 @@ static Status ONNX_Execute_Abs(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
 
+    out->shape = in->shape;
+
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
     uint64_t n = in->shape.total_elements;
@@ -925,6 +938,8 @@ static Status ONNX_Execute_Neg(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
@@ -946,6 +961,8 @@ static Status ONNX_Execute_Exp(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
 
+    out->shape = in->shape;
+
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
     uint64_t n = in->shape.total_elements;
@@ -965,6 +982,8 @@ static Status ONNX_Execute_Log(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
@@ -986,6 +1005,8 @@ static Status ONNX_Execute_Sqrt(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
 
+    out->shape = in->shape;
+
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
     uint64_t n = in->shape.total_elements;
@@ -1005,6 +1026,8 @@ static Status ONNX_Execute_Ceil(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
@@ -1026,6 +1049,8 @@ static Status ONNX_Execute_Floor(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
 
+    out->shape = in->shape;
+
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
     uint64_t n = in->shape.total_elements;
@@ -1046,6 +1071,8 @@ static Status ONNX_Execute_Sin(ONNX_Node* node, ONNX_InferenceContext* ctx)
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
 
+    out->shape = in->shape;
+
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
     uint64_t n = in->shape.total_elements;
@@ -1065,6 +1092,8 @@ static Status ONNX_Execute_Cos(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
@@ -1106,6 +1135,8 @@ static Status ONNX_Execute_LRN(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in  = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;  /* LRN is shape-preserving */
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
     if (in->shape.ndim != 4) return STATUS_ERROR_NOT_SUPPORTED;
@@ -1178,6 +1209,8 @@ static Status ONNX_Execute_Clip(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
     ONNX_Tensor* in = node->inputs[0];
     ONNX_Tensor* out = node->outputs[0];
+
+    out->shape = in->shape;
 
     if (in->dtype != ONNX_DTYPE_FLOAT32) return STATUS_ERROR_NOT_SUPPORTED;
 
@@ -1358,12 +1391,17 @@ Status ONNX_Execute_Conv(ONNX_Node* node, ONNX_InferenceContext* ctx)
     uint32_t stride_h = (node->attributes.strides_len >= 1) ? (uint32_t)node->attributes.strides[0] : 1;
     uint32_t stride_w = (node->attributes.strides_len >= 2) ? (uint32_t)node->attributes.strides[1] : stride_h;
 
-    uint32_t pad_h = (node->attributes.pads_len >= 1) ? (uint32_t)node->attributes.pads[0] : 0;
-    uint32_t pad_w = (node->attributes.pads_len >= 2) ? (uint32_t)node->attributes.pads[1] : 0;
+    uint32_t pad_top = (uint32_t)(node->attributes.pads_len >= 1 ? node->attributes.pads[0] : 0);
+    uint32_t pad_left = (uint32_t)(node->attributes.pads_len >= 2 ? node->attributes.pads[1] : 0);
+    uint32_t pad_bottom = (uint32_t)(node->attributes.pads_len >= 3 ? node->attributes.pads[2] : 0);
+    uint32_t pad_right = (uint32_t)(node->attributes.pads_len >= 4 ? node->attributes.pads[3] : 0);
 
-    uint32_t h_out = (h_in + 2 * pad_h - k_h) / stride_h + 1;
-    uint32_t w_out = (w_in + 2 * pad_w - k_w) / stride_w + 1;
+    uint32_t h_out = (h_in + pad_top + pad_bottom - k_h) / stride_h + 1;
+    uint32_t w_out = (w_in + pad_left + pad_right - k_w) / stride_w + 1;
 
+    y->shape.ndim = 4;
+    y->shape.dims[0] = x->shape.dims[0];
+    y->shape.dims[1] = c_out;
     y->shape.dims[2] = h_out;
     y->shape.dims[3] = w_out;
     y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
@@ -1384,8 +1422,8 @@ Status ONNX_Execute_Conv(ONNX_Node* node, ONNX_InferenceContext* ctx)
                     for (uint32_t ic = 0; ic < c_in; ic++) {
                         for (uint32_t kh = 0; kh < k_h; kh++) {
                             for (uint32_t kw = 0; kw < k_w; kw++) {
-                                int32_t ih = (int32_t)(oh * stride_h + kh) - (int32_t)pad_h;
-                                int32_t iw = (int32_t)(ow * stride_w + kw) - (int32_t)pad_w;
+                                int32_t ih = (int32_t)(oh * stride_h + kh) - (int32_t)pad_top;
+                                int32_t iw = (int32_t)(ow * stride_w + kw) - (int32_t)pad_left;
 
                                 if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
                                     float val_x = x_data[nb * c_in * h_in * w_in +
@@ -1436,12 +1474,17 @@ Status ONNX_Execute_MaxPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
     uint32_t stride_h = (node->attributes.strides_len >= 1) ? (uint32_t)node->attributes.strides[0] : 2;
     uint32_t stride_w = (node->attributes.strides_len >= 2) ? (uint32_t)node->attributes.strides[1] : stride_h;
 
-    uint32_t pad_h = (node->attributes.pads_len >= 1) ? (uint32_t)node->attributes.pads[0] : 0;
-    uint32_t pad_w = (node->attributes.pads_len >= 2) ? (uint32_t)node->attributes.pads[1] : 0;
+    uint32_t pad_top = (uint32_t)(node->attributes.pads_len >= 1 ? node->attributes.pads[0] : 0);
+    uint32_t pad_left = (uint32_t)(node->attributes.pads_len >= 2 ? node->attributes.pads[1] : 0);
+    uint32_t pad_bottom = (uint32_t)(node->attributes.pads_len >= 3 ? node->attributes.pads[2] : 0);
+    uint32_t pad_right = (uint32_t)(node->attributes.pads_len >= 4 ? node->attributes.pads[3] : 0);
 
-    uint32_t h_out = (h_in + 2 * pad_h - k_h) / stride_h + 1;
-    uint32_t w_out = (w_in + 2 * pad_w - k_w) / stride_w + 1;
+    uint32_t h_out = (h_in + pad_top + pad_bottom - k_h) / stride_h + 1;
+    uint32_t w_out = (w_in + pad_left + pad_right - k_w) / stride_w + 1;
 
+    y->shape.ndim = 4;
+    y->shape.dims[0] = x->shape.dims[0];
+    y->shape.dims[1] = x->shape.dims[1];
     y->shape.dims[2] = h_out;
     y->shape.dims[3] = w_out;
     y->shape.total_elements = y->shape.dims[0] * y->shape.dims[1] * h_out * w_out;
@@ -1450,6 +1493,7 @@ Status ONNX_Execute_MaxPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
     float* y_data = (float*)y->data;
 
     uint32_t batch_n = (uint32_t)x->shape.dims[0];
+
     for (uint32_t nb = 0; nb < batch_n; nb++) {
         for (uint32_t ic = 0; ic < c; ic++) {
             for (uint32_t oh = 0; oh < h_out; oh++) {
@@ -1458,8 +1502,8 @@ Status ONNX_Execute_MaxPool(ONNX_Node* node, ONNX_InferenceContext* ctx)
 
                     for (uint32_t kh = 0; kh < k_h; kh++) {
                         for (uint32_t kw = 0; kw < k_w; kw++) {
-                            int32_t ih = (int32_t)(oh * stride_h + kh) - (int32_t)pad_h;
-                            int32_t iw = (int32_t)(ow * stride_w + kw) - (int32_t)pad_w;
+                            int32_t ih = (int32_t)(oh * stride_h + kh) - (int32_t)pad_top;
+                            int32_t iw = (int32_t)(ow * stride_w + kw) - (int32_t)pad_left;
 
                             if (ih >= 0 && ih < (int32_t)h_in && iw >= 0 && iw < (int32_t)w_in) {
                                 float val = x_data[nb * c * h_in * w_in +
