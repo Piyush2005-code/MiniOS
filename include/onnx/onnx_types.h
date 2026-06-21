@@ -98,6 +98,7 @@ typedef enum {
 
     /* Normalization */
     ONNX_OP_LRN,
+    ONNX_OP_DROPOUT,
 
     ONNX_OP_MAX_VALUE
 } ONNX_OperatorType;

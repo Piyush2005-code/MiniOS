@@ -1,0 +1,7 @@
+target remote :1234
+b *0x40001D48
+c
+bt
+info registers
+kill
+quit

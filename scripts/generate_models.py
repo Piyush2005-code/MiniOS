@@ -408,6 +408,140 @@ def build_transformer_tiny():
 
 
 # ===========================================================================
+# 7. mnist_mlp.onnx
+# ===========================================================================
+def build_mnist_mlp():
+    inits, nodes = [], []
+
+    def fc(inp, in_f, out_f, name, relu=True):
+        W = rn([out_f, in_f]); b = zeros([out_f])
+        wn, bn, on = f"{name}_W", f"{name}_b", f"{name}_out"
+        inits.extend([init(wn, W), init(bn, b)])
+        nodes.append(node("Gemm", [inp, wn, bn], [on],
+                           name=name, transB=1, alpha=1.0, beta=1.0))
+        if relu:
+            rout = f"{name}_relu"
+            nodes.append(node("Relu", [on], [rout], name=f"{name}_relu"))
+            return rout
+        return on
+
+    flat = "flat_out"
+    nodes.append(node("Flatten", ["input"], [flat], name="flatten", axis=1))
+
+    x = fc(flat, 784, 128, "fc1")
+    x = fc(x, 128, 10, "fc2", relu=False)
+
+    nodes.append(node("Softmax", [x], ["output"], name="softmax", axis=1))
+
+    g = helper.make_graph(nodes, "mnist_mlp",
+                          [vi("input", TensorProto.FLOAT, [1, 1, 28, 28])],
+                          [vi("output", TensorProto.FLOAT, [1, 10])],
+                          initializer=inits)
+    return make_model(g)
+
+# ===========================================================================
+# 8. squeezenet_nano.onnx
+# ===========================================================================
+def build_squeezenet_nano():
+    inits, nodes = [], []
+
+    def conv(inp, c_in, c_out, k, name, pads=None):
+        if pads is None: pads = [k//2]*4
+        W = rn([c_out, c_in, k, k]); b = zeros([c_out])
+        wn, bn, on = f"{name}_W", f"{name}_b", f"{name}_out"
+        inits.extend([init(wn, W), init(bn, b)])
+        nodes.append(node("Conv", [inp, wn, bn], [on], name=name,
+                           kernel_shape=[k, k], pads=pads))
+        relu_out = f"{name}_relu"
+        nodes.append(node("Relu", [on], [relu_out], name=f"{name}_relu"))
+        return relu_out
+
+    def fire(inp, c_in, s1, e1, e3, name):
+        sq = conv(inp, c_in, s1, 1, f"{name}_sq")
+        ex1 = conv(sq, s1, e1, 1, f"{name}_ex1")
+        ex3 = conv(sq, s1, e3, 3, f"{name}_ex3", pads=[1,1,1,1])
+        cat_out = f"{name}_cat"
+        nodes.append(node("Concat", [ex1, ex3], [cat_out], name=f"{name}_cat", axis=1))
+        return cat_out
+
+    x = conv("input", 3, 16, 3, "stem", pads=[1,1,1,1])
+    x = fire(x, 16, 4, 8, 8, "fire1")
+    x = fire(x, 16, 8, 16, 16, "fire2")
+
+    gap = "gap_out"
+    nodes.append(node("GlobalAveragePool", [x], [gap], name="gap"))
+    flat = "flat_out"
+    nodes.append(node("Flatten", [gap], [flat], name="flatten", axis=1))
+
+    W = rn([10, 32]); b = zeros([10])
+    inits.extend([init("fc_W", W), init("fc_b", b)])
+    nodes.append(node("Gemm", [flat, "fc_W", "fc_b"], ["fc_out"],
+                       name="fc", transB=1, alpha=1.0, beta=1.0))
+    nodes.append(node("Softmax", ["fc_out"], ["output"], name="softmax", axis=1))
+
+    g = helper.make_graph(nodes, "squeezenet_nano",
+                          [vi("input", TensorProto.FLOAT, [1, 3, 32, 32])],
+                          [vi("output", TensorProto.FLOAT, [1, 10])],
+                          initializer=inits)
+    return make_model(g)
+
+# ===========================================================================
+# 9. mobilenet_tiny.onnx
+# ===========================================================================
+def build_mobilenet_tiny():
+    inits, nodes = [], []
+
+    def conv(inp, c_in, c_out, k, name, pads=None, group=1):
+        if pads is None: pads = [k//2]*4
+        W = rn([c_out, c_in//group, k, k]); b = zeros([c_out])
+        wn, bn, on = f"{name}_W", f"{name}_b", f"{name}_out"
+        inits.extend([init(wn, W), init(bn, b)])
+        nodes.append(node("Conv", [inp, wn, bn], [on], name=name,
+                           kernel_shape=[k, k], pads=pads, group=group))
+        
+        scale = np.ones(c_out, np.float32)
+        bn_b  = np.zeros(c_out, np.float32)
+        mean  = np.zeros(c_out, np.float32)
+        var   = np.ones(c_out, np.float32)
+        sn, bbn, mn, vn = (f"{name}_bn_{s}" for s in ["scale","B","mean","var"])
+        inits.extend([init(sn, scale), init(bbn, bn_b),
+                      init(mn, mean),  init(vn, var)])
+        bn_out = f"{name}_bn"
+        nodes.append(node("BatchNormalization",
+                           [on, sn, bbn, mn, vn], [bn_out],
+                           name=f"{name}_bn", epsilon=1e-5, momentum=0.9))
+                           
+        relu_out = f"{name}_relu"
+        nodes.append(node("Relu", [bn_out], [relu_out], name=f"{name}_relu"))
+        return relu_out
+
+    def dw_sep(inp, c_in, c_out, name):
+        dw = conv(inp, c_in, c_in, 3, f"{name}_dw", group=c_in)
+        pw = conv(dw, c_in, c_out, 1, f"{name}_pw", pads=[0,0,0,0])
+        return pw
+
+    x = conv("input", 3, 16, 3, "stem", pads=[1,1,1,1])
+    x = dw_sep(x, 16, 16, "ds1")
+    x = dw_sep(x, 16, 32, "ds2")
+
+    gap = "gap_out"
+    nodes.append(node("GlobalAveragePool", [x], [gap], name="gap"))
+    flat = "flat_out"
+    nodes.append(node("Flatten", [gap], [flat], name="flatten", axis=1))
+
+    W = rn([10, 32]); b = zeros([10])
+    inits.extend([init("fc_W", W), init("fc_b", b)])
+    nodes.append(node("Gemm", [flat, "fc_W", "fc_b"], ["fc_out"],
+                       name="fc", transB=1, alpha=1.0, beta=1.0))
+    nodes.append(node("Softmax", ["fc_out"], ["output"], name="softmax", axis=1))
+
+    g = helper.make_graph(nodes, "mobilenet_tiny",
+                          [vi("input", TensorProto.FLOAT, [1, 3, 32, 32])],
+                          [vi("output", TensorProto.FLOAT, [1, 10])],
+                          initializer=inits)
+    return make_model(g)
+
+# ===========================================================================
 # Main
 # ===========================================================================
 
@@ -418,6 +552,9 @@ MODELS = [
     ("vgg_nano.onnx",           build_vgg_nano,           "VGG-nano [1,3,32,32]->[1,10]  (Deep Conv stacks)"),
     ("resnet_micro.onnx",       build_resnet_micro,       "ResNet   [1,3,16,16]->[1,10]  (Conv+Add residual)"),
     ("transformer_tiny.onnx",   build_transformer_tiny,   "Transformer-tiny [1,32]->[1,10] (MatMul-heavy)"),
+    ("mnist_mlp.onnx",          build_mnist_mlp,          "MNIST MLP [1,1,28,28]->[1,10]"),
+    ("squeezenet_nano.onnx",    build_squeezenet_nano,    "SqueezeNet [1,3,32,32]->[1,10]"),
+    ("mobilenet_tiny.onnx",     build_mobilenet_tiny,     "MobileNet  [1,3,32,32]->[1,10]"),
 ]
 
 if __name__ == "__main__":

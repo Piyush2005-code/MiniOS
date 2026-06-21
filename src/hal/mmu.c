@@ -99,18 +99,24 @@ static void mmu_build_page_tables(void)
     /*
      * Entry 1: 0x40000000 – 0x7FFFFFFF (1GB)
      * Normal Write-Back cacheable memory for RAM
-     * - Block descriptor
-     * - MAIR index 1 (Normal WB)
-     * - Access flag set
-     * - Inner shareable
-     * - EL1 read/write
      */
-    l1_page_table[1] = (0x40000000UL)           /* Physical base address */
-                      | PTE_TYPE_BLOCK           /* Block descriptor */
-                      | PTE_ATTR_NORMAL          /* MAIR index 1 */
-                      | PTE_AF                   /* Access flag */
-                      | PTE_SH_INNER             /* Inner shareable for RAM */
-                      | PTE_AP_RW_EL1;           /* EL1 read/write */
+    l1_page_table[1] = (0x40000000UL)
+                      | PTE_TYPE_BLOCK
+                      | PTE_ATTR_NORMAL
+                      | PTE_AF
+                      | PTE_SH_INNER
+                      | PTE_AP_RW_EL1;
+
+    /*
+     * Entry 2: 0x80000000 – 0xBFFFFFFF (1GB)
+     * Second gigabyte of RAM (since we expanded to 2048M)
+     */
+    l1_page_table[2] = (0x80000000UL)
+                      | PTE_TYPE_BLOCK
+                      | PTE_ATTR_NORMAL
+                      | PTE_AF
+                      | PTE_SH_INNER
+                      | PTE_AP_RW_EL1;
 }
 
 /* ------------------------------------------------------------------ */

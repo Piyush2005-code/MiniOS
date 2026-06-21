@@ -1,0 +1,1 @@
+./run_gdb.sh: line 14: aarch64-elf-gdb: command not found

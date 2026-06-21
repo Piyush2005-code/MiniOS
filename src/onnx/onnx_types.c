@@ -50,6 +50,7 @@ const char* ONNX_GetOperatorName(ONNX_OperatorType op_type)
         case ONNX_OP_CLIP:       return "Clip";
         case ONNX_OP_IDENTITY:   return "Identity";
         case ONNX_OP_LRN:        return "LRN";
+        case ONNX_OP_DROPOUT:    return "Dropout";
         default:                 return "Unknown";
     }
 }
