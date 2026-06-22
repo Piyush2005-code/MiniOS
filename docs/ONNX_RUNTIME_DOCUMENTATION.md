@@ -98,24 +98,6 @@ This clean separation ensures:
 - **One-time scheduling cost** — topology solved once, amortised over all invocations
 - **Real-time suitability** — predictable per-inference timing
 
-### Mathematical Formalism: Execution & Predictability
-
-MiniOS enforces strict predictability bounds (SRS PDR-001, PR-002) modeled mathematically for cooperative unikernel environments. The total inference latency $L_{inf}$ for a topologically sorted schedule of $N$ operators is defined as:
-
-$$ L_{inf} = \sum_{i=1}^{N} \tau_{op}(i) + \sum_{j=1}^{M} t_{yield}(j) $$
-
-Where:
-- $\tau_{op}(i)$ is the deterministic execution time for operator $i$.
-- $t_{yield}(j)$ is the context-switch overhead at the $j$-th yield point.
-
-To satisfy the **15% predictability variance limit** (PDR-001) under variations in ARM64 cache performance and DVFS, the execution duration variance is bounded:
-
-$$ \frac{\max(L_{inf}) - \min(L_{inf})}{\mu(L_{inf})} \le 0.15 $$
-
-Additionally, the cooperative scheduler guarantees strict system overhead limits (PR-002):
-
-$$ \sum_{j=1}^{M} t_{yield}(j) \le 0.10 \times L_{inf} $$
-
 ### Memory Layout
 
 ```
@@ -398,20 +380,6 @@ uint64_t used = KMEM_ArenaGetUsed(arena);   // bytes in use
 - Cache-line aligned — NEON-friendly accesses
 - Persistent for the model lifetime — freed only when `onnx_run` returns
 
-#### Formal Memory Planning Constraints (FR-017, FR-018)
-
-For any tensor $T_i$ with dimensions $D_i = \{N, C, H, W\}$ and numerical precision size $P$ bytes (where $P = 4$ for `float32`), the raw unpadded byte array size is given by:
-
-$$ S_{raw}(T_i) = P \prod_{d \in D_i} d $$
-
-To strictly satisfy **FR-018** (64-byte hardware cache alignment for NEON SIMD memory accesses), the arena guarantees an allocation size $S_{align}(T_i)$ formulated as:
-
-$$ S_{align}(T_i) = \left\lceil \frac{S_{raw}(T_i)}{64} \right\rceil \times 64 $$
-
-At any discrete execution step $t \in [1, N]$, let $\text{Live}(t)$ represent the mathematical set of tensors that must reside inside primary memory (in-use activations plus upcoming network dependencies). To satisfy **FR-016**, the static tensor arena $M_{total}$ guarantees:
-
-$$ \max_{t} \sum_{T_i \in \text{Live}(t)} S_{align}(T_i) \le M_{total} = 128 \text{ MB} $$
-
 ### Initializer Handling
 
 Weights and biases from the ONNX protobuf `raw_data` field are copied into the arena at load time.
@@ -468,15 +436,6 @@ for (iter = 0; iter < graph->num_nodes; iter++) {
 ```
 
 If the loop exits before scheduling all nodes, a cycle was detected → `STATUS_ERROR_INVALID_GRAPH`.
-
-#### Directed Acyclic Graph (DAG) Formalism (FR-008)
-
-The ONNX execution pipeline internally maps model dependencies to a mathematical Directed Acyclic Graph $G = (V, E)$, where $V$ represents the set of model operators and $E$ represents shared tensor data channels.
-For any directed edge $(u, v) \in E$, the execution of operator $u$ must strictly precede $v$. The static Kahn's scheduler evaluates $G$ to output an index-ordered sequential plan $S = (v_1, v_2, \dots, v_N)$ such that the following topology constraint holds invariant:
-
-$$ \forall (u, v) \in E \implies \text{index}(u, S) < \text{index}(v, S) $$
-
-This strictly formalizes the design of the **cooperative task model (FR-011)** to evaluate deep dependencies procedurally without requiring lock/mutex runtime synchronization.
 
 ### Dependency Analysis
 
@@ -558,19 +517,10 @@ Status ONNX_Runtime_ExecuteNode(ctx, node) {
 | **Math**         | Abs, Neg, Exp, Log, Sqrt, Ceil, Floor, Sin, Cos       | |
 | **Utility**      | Clip, Identity, Concat, Cast                          | |
 
-### Conv2D — Corrected Implementation & Mathematical Definition (v2.0)
+### Conv2D — Corrected Implementation (v2.0)
 
-The standard 2D Convolution over an input tensor $X \in \mathbb{R}^{N \times C_{in} \times H_{in} \times W_{in}}$ with a weight tensor $W' \in \mathbb{R}^{C_{out} \times C_{in} \times K_H \times K_W}$ is rigorously implemented as:
-
-$$ Y_{n, m, h, w} = B_m + \sum_{c=0}^{C_{in}-1} \sum_{i=0}^{K_H-1} \sum_{j=0}^{K_W-1} X_{n, c, (h \cdot s_h - p_h + i), (w \cdot s_w - p_w + j)} \cdot W'_{m, c, i, j} $$
-
-Where:
-- $S = (s_h, s_w)$ is the uniform stride vector.
-- $P = (p_h, p_w)$ represents symmetric zero-padding bounds.
-- $B_m$ is the channel-wise broadcasted bias operand.
-
-Previous versions iterated over `[C_out, H, W]` without the outer batch dimension $N$.
-v2.0 adds the mathematically correct outer `nb` loop:
+Previous versions iterated over `[C_out, H, W]` without the outer batch dimension `N`.
+v2.0 adds the correct outer `nb` loop:
 
 ```c
 uint32_t batch_n = (uint32_t)x->shape.dims[0];
@@ -598,12 +548,7 @@ for (uint32_t nb = 0; nb < batch_n; nb++) {
 }
 ```
 
-### GEMM — transB Auto-Detection & Formulation (v2.0)
-
-The General Matrix Multiplication (GEMM) operator computes the scaled affine matrix product evaluated analytically as:
-
-$$ Y = \alpha A B^T + \beta C \quad \text{(if } transB = 1\text{)} $$
-$$ Y_{i,j} = \alpha \sum_{k=0}^{K-1} A_{i,k} B_{j,k} + \beta C_j $$
+### GEMM — transB Auto-Detection (v2.0)
 
 AlexNet and most PyTorch-exported models store FC weights transposed (`transB=1`).
 v2.0 infers transposition from the weight tensor shape rather than relying on
@@ -631,11 +576,14 @@ for (uint32_t i = 0; i < M; i++)
 
 ### LRN — Local Response Normalization (New in v2.0)
 
-Required by AlexNet after `conv1` and `conv2`. Implements the strict mathematical continuous formulation over the cross-channel feature space:
+Required by AlexNet after `conv1` and `conv2`. Implements the ONNX spec formula:
 
-$$ Y_{n,c,h,w} = X_{n,c,h,w} \left( \text{bias} + \frac{\alpha}{s} \sum_{j=\max(0, c - \lfloor s/2 \rfloor)}^{\min(C-1, c + \lfloor s/2 \rfloor)} X_{n,j,h,w}^2 \right)^{-\beta} $$
+```
+y[n,c,h,w] = x[n,c,h,w] / (bias + alpha/size * Σ x[n,j,h,w]²)^beta
 
-Where typical default hyperparameters configured by the attributes message are cross-channel window size $s=5$, multiplier $\alpha=10^{-4}$, power scalar $\beta=0.75$, and $\text{bias}=1.0$.
+  j = max(0, c - floor(size/2)) … min(C-1, c + floor(size/2))
+  Default: size=5, alpha=0.0001, beta=0.75, bias=1.0
+```
 
 The `β = 0.75` fast path avoids `fast_exp(β * log(d))`:
 
