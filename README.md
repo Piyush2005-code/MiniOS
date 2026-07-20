@@ -109,7 +109,7 @@ graph TB
 
 ---
 
-## 📚 References & Bibliography
+## 📚 References and Bibliography
 
 MiniOS development is guided by rigorous technical standards and academic research:
 
